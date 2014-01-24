@@ -1,0 +1,424 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<!-- $Id: 5-nameserver.html,v 2.33.2.5 2008/06/01 09:45:35 irmen Exp $ -->
+<head>
+  <title>PYRO - Name Server</title>
+  <link rel="stylesheet" type="text/css" href="pyromanual_print.css" media="print">
+  <link rel="stylesheet" type="text/css" href="pyromanual.css" media="screen">
+</head>
+
+<body>
+  <div class="nav">
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="4-usage.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "6-eventserver.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table>
+<hr></div>
+
+  <h2><u>5. Pyro Name Server</u></h2>
+
+  <ul>
+    <li><a href="#cmds">The commands for starting a Name Server</a></li>
+
+    <li><a href="#server">What does the server listen for?</a></li>
+    <li><a href="#naming">Pyro's hierarchical object naming scheme</a></li>
+
+    <li><a href="#types">The different Name Server types available in Pyro</a></li>
+
+    <li><a href="#secplugin">Security plugin features</a></li>
+
+    <li><a href="#paired">Paired (failover) mode</a></li>
+
+    <li><a href="#locator">The Name Server Locator</a></li>
+
+    <li><a href="#pyroname">The special <code>PYRONAME://</code>, <code>PYROLOC://</code> and
+    <code>PYROLOCSSL://</code> URIs</a></li>
+
+    <li><a href="#methods">The methods on the Name Server Pyro object</a></li>
+  </ul>
+
+  <h3><a name="cmds" id="cmds"></a>The commands for starting a Name Server</h3>There are a few commands (actually
+  scripts) supplied in the <code>bin</code> directory that will start a Pyro Name Server for you:
+
+  <dl>
+    <dt><code>pyro-ns</code> &nbsp;&nbsp;(Name Server)</dt>
+
+    <dd>- Arguments: [-h] [-k] [-m] [-r] [-n hostname] [-p port] [-b port] [-i identification] [-d [databasefile]] [-s
+    securitymodule] [-1 [host:port]] [-2 [host:port]] [-v]<br>
+    - Starts the Pyro Name Server. The '-h' argument prints some help, '-k' makes it immune to shutdown requests (a
+    crude form of security against malicious shutdown requests), '-m' allows multiple Name Servers to be started in the
+    same network segment (default=not allowed), 
+    '-r' means that no lookup will be done to check for an already existing nameserver,
+    '-n hostname' selects the hostname the server should bind on (useful on
+    systems with multiple network adapters/hostnames), '-p port' override the Name Server port number (0=random), '-b port'
+    specifies the broadcast port number. With '-i identification' you can supply the authentication passphrase that
+    will be required to connect to this server. When it contains spaces, use quotes around it. '-d' starts the
+    persistent server. You can provide an optional filename to the last option to specify the database file. The '-s'
+    option specifies the Python module for security plugins (make sure it is in your PYTHONPATH). Use '-v' to enable
+    slightly more verbose output.<br>
+    The '-1' and '-2' options are used for <em>paired</em> mode. More info <a href="#paired">below</a>.<br>
+    <br></dd>
+
+    <dt><code>pyro-rns</code> &nbsp;&nbsp;(Restarting Name Server)</dt>
+
+    <dd>This is very much the same as the <code>ns</code> command but the script will restart the name server if it
+    quits or crashes. Do not confuse this with the <code>-d</code> argument, which will start a Name Server that has
+    its database persistent on disk. Of course it is very useful to combine the <code>rns</code> with the
+    <code>-d</code> switch!!!<br>
+    <br></dd>
+
+    <dt><code>pyro-ns.cmd, pyro-rns.cmd</code></dt>
+
+    <dd>The Windows scripts for the above.<br>
+    <br></dd>
+
+    <dt><code>pyro-nssvc</code> &nbsp;&nbsp;(Windows-only Name Server 'NT-service' control script)</dt>
+
+    <dd>- Arguments: [options] install|update|remove|start [...]|stop|restart [...]<br>
+    - On windows NT (2000/XP) systems, it's possible to register and start the Name server as a NT-service. You'll have
+    to use the <code>nssvc.cmd</code> script to register it as a service. Make sure you have Pyro properly installed in
+    your Python's site-packages. Or make sure to register the service using an account with the correct PYTHONPATH
+    setting, so that Pyro can be located. The NS service logs to <code>C:\Pyro_NS_svc.log</code>, and writes its URI to
+    <code>C:\Pyro_NS_URI.txt</code> (C: being your system drive).<br>
+    You can configure command line arguments for this service in the Registry. The key is:
+    <code>HKLM\System\CurrentControlSet\Services\PyroNS</code>, and the value under that key is:
+    <code>PyroServiceArguments</code> (REG_SZ, it will be asked and created for you when doing a <code>nssvc.cmd
+    install</code> from a command prompt).<br>
+    <em>Running the NS as a windows NT service it not well supported.</em></dd>
+  </dl>Using the <code>pyro-nsc</code> command (explained in the Usage chapter) you can control a Name Server that is
+  already running.
+
+  <p>Consider setting PYRO_CHECKSUM to 1 before starting the NS. It will communicate more reliably and the overhead is
+  very small.</p>
+
+  <p><strong>If you want to start the NS from within your own program</strong>, you can ofcourse start it by executing
+  the start script mentioned above. You could also use the <code>Pyro.naming.NameServerStarter</code> class to start it
+  directly (this is what the script also does). Be sure to start it in a separate process or thread because it will run
+  in its own endless loop. You probably have to wait until the NS has been fully started, call the
+  <code>waitUntilStarted()</code> method on the starter object. It returns true if the NS has been started, false if it
+  is not yet ready. You can provide a timeout argument (in seconds).</p>
+
+  <h3><a name="server" id="server"></a>What does the server listen for?</h3>
+ When you start the name server it usually does two things. It starts a broadcast listener to respond to 
+ broadcast messages that may arrive, and it starts the name server itself. It binds (listens) on
+ the default network interface, unless you specify otherwise with the hostname argument.
+ Pyro does things a bit differently when it discovers that the server is listening on the local loopback adapter (also called localhost 
+ or 127.0.0.1). In this case, no broadcast server is started at all because it is not useful
+ to have any: the name server is only accessible on the local system! Note that there could be
+ a number of reasons of this happening: you force it to bind on localhost by specifying that as the hostname
+ parameter, or there is no external network available, or the DNS of your system is wrongly configured.
+ The Pyro log wil contain notes of this happening (and you can see it on the screen as well if you
+ enable the verbose flag).
+ 
+  <h3><a name="naming" id="naming"></a>Pyro's hierarchical object naming scheme</h3>Brief: it's just like a filesystem
+  with directories and files, and path separators.<br>
+  Verbose: Pyro's object naming is hierarchical. Let's call the full set of names the <em>namespace</em>. A namespace
+  has a single <em>root</em> that contains all other names. A name in the namespace is the name of a <em>group</em> or
+  an <em>object</em>. A group can contain other groups, and objects. The root is a group.
+
+  <p>Object names can be <em>absolute</em> or <em>relative</em>. Relative object names are searched in the <em>default
+  group</em> (which has a special name, set by <code>PYRO_NS_DEFAULTGROUP</code>). Absolute names are always searched
+  from the root. Absolute object names start with a special character that signifies the root; the colon
+  ('<code>:</code>'). Relative object names don't have this character at the start.</p>
+
+  <p>Object names can be <em>simple</em> or <em>compound</em>. Compound object names consist of multiple parts
+  separated by a special <em>group separator character</em>: the dot ('<code>.</code>'). Compound names are used to
+  search within the namespace hierarchy. Each component of the name is the name of a group. The last name component can
+  be the name of a group or an object (usually the latter).</p>
+
+  <p>Object name parts can only consist of the ASCII characters in the range 33-126 ('!'-'~') and except the backslash
+  (\), dot ('.') and colon (':'). So spaces are also illegal in names, but normal slashes ('/') are okay.</p>
+
+  <p>Let's finish with a few examples to clarify all this. Note that by name alone you cannot distinguish a group name
+  or an object name.</p>
+
+  <table>
+    <tr>
+      <td><code>:</code></td>
+
+      <td>The namespace root group</td>
+    </tr>
+
+    <tr>
+      <td><code>:TestObj</code></td>
+
+      <td>The TestObj name in the root (most likely an object name)</td>
+    </tr>
+
+    <tr>
+      <td><code>:Test.simple.object1</code></td>
+
+      <td>The object1 name in the simple group in the Test group in the root.</td>
+    </tr>
+
+    <tr>
+      <td><code>Test.simple.object1</code></td>
+
+      <td>The object1 name in the simple group in the Test group in the default group (which is &quot;:Default&quot;
+          if not configured otherwise. This is the Default group in the root).</td>
+    </tr>
+
+    <tr>
+      <td><code>object1</code></td>
+
+      <td>The object1 name in the default group.</td>
+    </tr>
+  </table>
+
+  <h3><a name="types" id="types"></a>The different Name Server types available</h3>There are two kinds of Name Servers
+  available at the moment:
+
+  <ul>
+    <li>Regular, non-persistent (<code>Pyro.naming.NameServer</code>)</li>
+
+    <li>Persistent (<code>Pyro.naming.PersistentNameServer</code>)</li>
+  </ul>The non-persistent NS stores its naming database only in memory. It is really fast because of that, but when it
+  stops or crashes, the naming database is lost. All objects that were registered in the NS have to be re-registered.
+
+  <p>The persistent NS stores its naming database on disk. Currently this is implemented the easy way;
+      there is a direct mapping between the group names and directories on disk, and between object names
+      + URIs and files in these directories on disk. The database by default is stored in a &quot;Pyro_NS_database&quot;
+      directory that is created in the directory configured by <code>PYRO_STORAGE</code>. There is a
+      special option for the script that specifies another location, if needed.</p>
+
+  <p>Usually you don't access the <code>NameServer</code> or <code>PersistentNameServer</code> classes directly: there
+  are scripts to start the right name server.</p>
+
+  <h3>Connecting objects to the Pyro Daemon with persistent naming</h3>Usually you'll use the <code>connect</code>
+  method of the daemon to connect your object instances to the daemon on the server. The daemon will register your
+  object with the name server too, if you supplied a NS to the daemon and your object isn't transient (it has a name).
+
+  <p>But, when using the persistent name server, there is a complication here: if you didn't explicitly remove your
+  object from the NS, the entry will still be there the next time. Your connect attempt will then fail because your
+  object cannot be registered again in the NS.</p>
+
+  <p>The solution is to use the <code>connectPersistent</code> method of the Pyro daemon. Except for the method name,
+  you call it exactly like the regular <code>connect</code> method. It tries to find your object in the NS. If it's
+  there already, the previous URI is used for your object (that also means that the object's GUID is replaced by the
+  previous GUID that was found in the NS). If it isn't there, the regular <code>connect</code> call takes over.</p>
+
+  <p>Of course you could always play safe and explicitly unregister any possible previous occurrences from the NS
+  before you connect new instances. This is what all examples do by the way, so you can safely run an example again and
+  again.</p>
+
+  <p>For your information, the code that starts the Persistent Name Server uses <code>connectPersistent</code> to
+  connect the name server object to the daemon. Why? because the name server itself is also registered in the NS
+  database, and it is necessary that when the NS restarts, it uses the URI of the previous instance if found in the
+  persistent database.</p>
+
+  <h3><a name="secplugin" id="secplugin"></a>Security plugin features</h3>The Name Server supports security plugins, to
+  facilitate access control to the Name Server. When starting the NS, you can supply an option that tells the NS to
+  load that specific Python module and use the security plugins that you defined in there. For more information, see
+  the <a href="9-security.html#nameserverplugins">Security chapter</a>.
+
+  <h3><a name="paired" id="paired"></a>Paired (failover) mode</h3>For improved availability you can run the Name Server
+  in <em>paired mode</em>. This means that you start another Name Server instance that works together with the other
+  one, as a pair, but providing a single Namespace. If one of them dies, the other takes over. They synchronize every
+  namespace change and update so that they are always each other's exact copy. If a dead NS is restarted, it resyncs
+  the full Namespace from the other copy that is still running.<br>
+  Pyro clients that do a NS lookup automatically get the other NS if the first is dead and vice versa, you don't have
+  to change anything in the client code.
+
+  <p>Paired mode is activated by using the <strong>-1</strong> and <strong>-2</strong> options when starting the NS. 1
+  means: this is the first one, 2 means: this is the second one of the pair (this distinction is necessary because of a
+  slightly different startup procedure depending on being the first or the second).<br>
+  You can add a <strong>hostname:port</strong> argument to the -1 and -2 option, that specify the location of the
+  <em>other</em> name server. So, for instance:<br>
+  <code>pyro-ns -n atlantis -p 4000 -1 atlantis:5000</code> to start NS #1,<br>
+  <code>pyro-ns -n atlantis -p 5000 -2 atlantis:4000</code> to start NS #2. But usually just -1 or -2 is good enough.</p>
+
+  <p>There are three new config items dealing with paired mode NS: <code>PYRO_NS2_HOSTNAME</code>,
+  <code>PYRO_NS2_PORT</code> and <code>PYRO_NS2_BC_PORT</code>. They can be used to specify non-default values for the
+  hostname and port number that the second NS will use. See the config chapter.</p>
+
+  <p><strong>Resync mechanism:</strong> Start A, then B. B remembers A's location (either discovered trough NS lookup
+  or via command line URL). B notifies A that it has started, provides own location, and gets a copy of A's namespace
+  database. A remembers B's location. Any namespace change in A is replicated in B and vice versa, using ONEWAY calls.
+  If an error occurs, the reference to the faulty NS is discarded. If you discover that somehow the namespaces get
+  out-of-sync, just kill the one that is faulty and restart it. It will automatically resync with the 'good' one.</p>
+
+  <p><strong>With Identification:</strong> If you want to use paired mode together with identification (-i), you
+  <em>must</em> supply the same identification argument to both name servers.</p>
+
+  <h3><a name="locator" id="locator"></a>The Name Server Locator</h3>Pyro's NS is actually two servers: the normal Pyro
+  server but when using TCP/IP sockets, also a <em>broadcast listener</em>. The latter helps clients find the location
+  of the Name Server by answering to broadcast packet requests. To hide that broadcast lookup mechanism from you, and
+  to make the lookup very easy, we have the <strong>NameServer Locator</strong>, defined in the
+  <code>Pyro.naming</code> package. This object gets a Pyro proxy for the NS for you. Because this is the recommended
+  (and easiest way) to gain access to the Name Server, you're not interested in the internal name Pyro uses for the
+  Name Server. But for consistency, it is defined, and the Name Server object itself is known in the Name Server's
+  namespace under the name available in <code>Pyro.constants.NAMESERVER_NAME</code>.
+
+  <p>There are essentially three ways to get a reference to the Name Server:</p>
+
+  <ul>
+    <li>Use the <code>NameServerLocator</code>'s broadcast mechanism. This only works if your network supports
+    broadcasting and the NS is reachable by a broadcast request.
+      <pre>
+   locator = Pyro.naming.NameServerLocator()
+   ns = locator.getNS()
+</pre>
+<p>If your network doesn't allow broadcasts, or the broadcast can't reach the NS, this mechanism doesn't work. There
+is a simple workaround: just set the <code>PYRO_NS_HOSTNAME</code> config option to the hostname on which your NS can
+be found. This disables the broadcast lookup and uses the one below instead.</p>
+<p>For simplicity, if Pyro cannot find the name server using a broadcast search, it tries to contact
+	it directly on the machine itself and localhost. This allows you to use it even on a system
+	where the name server is running on localhost (for some reason) without having to set 
+	<code>PYRO_NS_HOSTNAME</code> to <code>localhost</code>.</p>
+<p>You can override the default broadcast address (255.255.255.255) by setting the <code>bcaddr</code> parameter:
+	<pre>ns=locator.getNS(bcaddr="192.168.1.255")</pre>
+    </li>
+
+    <li>Use the <code>NameServerLocator</code>'s direct host mechanism. This only works if you know the host on which
+    the NS is located. The <code>port</code> argument is optional. If the NS has been started using a non-default port
+    number you can use it to specify the port number.
+      <pre>
+   locator = Pyro.naming.NameServerLocator()
+   ns = locator.getNS(host='hostname', port=7777)
+</pre>If you specify the hostname yourself, the locator doesn't attempt to find the NS with the broadcast mechanism,
+and therefore there is no lookup delay. Also you can specify a port number different from the default port. If you set
+the <code>PYRO_NS_HOSTNAME</code> config option, the locator automatically uses the specified host for a direct lookup.
+You don't have to pass <code>Pyro.config.PYRO_NS_HOSTNAME</code> to the <code>getNS</code> method.
+    </li>
+
+    <li>Use the URI string the NS writes to a special file. This always works but is a bit more cumbersome, and your
+    file should be copied or accessible across a network file system. Anyway, assume the NS writes to
+    '<code>Pyro_NS_URI</code>':
+      <pre>
+   uri = open('Pyro_NS_URI','r').read()
+   uri = Pyro.core.PyroURI(uri)   # convert string to real URI object
+   ns = Pyro.naming.NameServerProxy(uri)    # create a proxy for the NS
+   ... you can now invoke methods, such as ns.ping() ...
+</pre><em>Note:</em> The URI changes every time a Pyro server or object is created. You cannot use a previously written
+URI when you have restarted the server.<br>
+      <em>Note:</em> It's highly recommended to just use the provided proxy to access the NS! Using a dynamic proxy not
+      obtained trough the locator, or some other means to access the Name Server, will probably screw up the name
+      scheme and default name groups, unless your own code explicitly takes care of this (which is unlikely). This is
+      cumbersome and the built-in proxy (<code>Pyro.naming.NameServerProxy</code>) contains all necessary logic
+      already. So just use that one. If you use the locator (see above) you will get a correct proxy automatically.<br>
+      <em>Note:</em> the constructor of the <code>NameServerProxy</code> has an optional second argument: the
+      connection authentication information.
+    </li>
+  </ul>
+
+  <h3><a name="pyroname" id="pyroname"></a>The special <code>PYRONAME://</code>, <code>PYROLOC://</code> and
+  <code>PYROLOCSSL://</code> URIs</h3>For the lazy ones among us, there is an even simpler way of using the Name
+  Server to look up objects by their name. Instead of using the <code>PYRO://</code> URIs that the Name Server returns,
+  and where you then get a proxy object for, you use another URI format. This format is as follows:<br>
+  <br>
+  <code>&nbsp; &nbsp; PYRONAME://nshostname:port/objectname</code> &nbsp; &nbsp; (PYRONAMESSL is not yet
+  implemented)<br>
+  <br>
+  The <code>nshostname</code> is the name of the host the Name Server is running on, and <code>port</code> may be a
+  non-default port the Name Server is listening on. Both may be omitted. <code>objectname</code> is the name of the
+  object you want to find! So, the next code fragment will find the NS using the default lookup mechanism, resolve the
+  object name to a real URI, create a proxy for that, and call a method:<br>
+  <pre>
+    Pyro.core.getProxyForURI('PYRONAME://:Test.MyObject').getQuote()
+</pre>So we now have remote object method invocation in one statement :-) <em>There is one important point: each time a
+<code>PYRONAME://</code> URI is used, a lookup for the Name Server has to be performed, and then a lookup for the
+object name. This is much slower than the regular method.</em> However, once you've constructed a proxy for this URI,
+no more lookups are performed.
+
+  <p>There is another special URI, that bypasses the Name Server completely:<br>
+  <br>
+  <code>    PYROLOC://hostname:port/objectname</code><br>
+  <code>    PYROLOCSSL://hostname:port/objectname</code>     (use this if the server is running in SSL mode)<br>
+  <br>
+  This time <code>hostname</code> is required and is the name of the host that your target Pyro object runs on.
+  <code>port</code> may be a non-default port the Pyro daemon is running on, and may be omitted.
+  <code>objectname</code> is the <em>internal</em> name for the Pyro object you want to access. When you use this URI,
+  the Name Server is bypassed and the target server is contacted directly to get the regular URI for the desired
+  object. The advantage of this is that you don't have to have a Pyro Name Server running. The disatvantages are
+  obvious; you miss all the features of the Name Server and you have to administrate server object names yourself
+  somehow. You must use the name that is passed to the <code>connect</code> method of the Daemon. <em>There is no
+  hierarchical naming scheme because the Name Server is not used at all.</em> Once the object is found, the real URI is
+  stored and no more lookups need to be done. The next code fragment shows how to call a remote object, without
+  requiring a Name Server to be present:<br></p>
+  <pre>
+    Pyro.core.getProxyForURI('PYROLOC://localhost/MyObject').getQuote()
+</pre>
+  (Use <code>PYROLOCSSL://</code> if the server is running in SSL mode) Remember that your server does
+  not have to rely on a Name Server when you want to use this mechanism. When you enable Pyro logging,
+  you might get a WARN that a Name Server is not specified. You can ignore this. Please also see the
+  &quot;noNS&quot; example, that shows how to use this URI,
+and also how you could connect directly by using an URI string that comes off the server.
+
+  <h3><a name="methods" id="methods"></a>The methods on the Name Server Pyro object</h3>
+  Ok, you've got a proxy for the
+  Name Server. Now what to do with it? You've already seen the most important method: <code>resolve</code>.
+  There are more methods, see below. One very important thing to realize: all names you supply must be <em>absolute</em>,
+  i.e. &quot;:Group.Objectname&quot; instead of just &quot;Objectname&quot;. The <code>NameServerProxy</code> that
+  you'll usually be working with has some logic that takes care of this.
+
+  <dl>
+    <dt><code>resolve(name)</code></dt>
+
+    <dd>Look up the object with the given name and returns the Pyro URI. (it will always return a real PyroURI object,
+    not a string).</dd>
+
+    <dt><code>register(name, URI)</code></dt>
+
+    <dd>Registers an object with the given name and the given Pyro URI. The URI can be a PyroURI object or just a
+    string.</dd>
+
+    <dt><code>unregister(name)</code></dt>
+
+    <dd>Removes the object with the given name from the naming database.</dd>
+
+    <dt><code>ping()</code></dt>
+
+    <dd>Does nothing, just to test if the Name Server is running.</dd>
+
+    <dt><code>list(groupname)</code></dt>
+
+    <dd>Returns a list of the given group. If groupname is None, lists the root group. The list contains tuples
+    (name,type) where name is the object name, and type is 0 for a naming group, and 1 for an object name.</dd>
+
+    <dt><code>flatlist()</code></dt>
+
+    <dd>Returns a list of all objects in the naming database. The list contains tuples (name, uri) where name is the
+    absolute object name and uri is the associated PyroURI object.</dd>
+
+    <dt><code>createGroup(name)</code></dt>
+
+    <dd>Create a new empty naming group.</dd>
+
+    <dt><code>deleteGroup(name)</code></dt>
+
+    <dd>Delete a naming group, including all its contents.</dd>
+
+    <dt><code>fullName(name)</code></dt>
+
+    <dd>Returns the full (absolute) name of the object (prefixed by the default group)</dd>
+
+    <dt><code>setMeta(name, meta)</code></dt>
+
+    <dd>sets user meta information for the given name. meta can be any object that can be pickled</dd>
+
+    <dt><code>getMeta(name)</code></dt>
+
+    <dd>retrieves the user meta information for the given name.</dd>
+  </dl>See the source code of the (x)nsc tools (<code>nsc.py / xnsc.py</code>) for more info.
+
+  <h4>Important notice:</h4>
+  By default, there is no access control on the Name Server. It is possible for anybody to
+  remove and overwrite an existing registered object. You must be very aware of this, because it is very
+  easy to sneak a trojan in by overwriting a name with a reference to the trojan object! This free access
+  is necessary for instance to be able to use the &quot;pyro-nsc&quot; tool without restriction.
+  <div class="nav">
+  <hr>
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="4-usage.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "6-eventserver.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table></div>
+</body>
+</html>

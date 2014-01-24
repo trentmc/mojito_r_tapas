@@ -1,0 +1,61 @@
+html {
+ background-color: #ddb;
+}
+
+body {
+ background-color: #ffd;
+ color: black;
+ font-family: Tahoma,"Bitstream Vera Sans",sans-serif;
+ font-size: 10pt;
+ max-width: 60em;
+ border: solid green 1px;
+ padding: 1em;
+ margin: 1em;
+}
+
+h1,h2,h3,h4,h5,h6,h7 {
+ font-family: "Trebuchet MS",Tahoma,"Bitstream Vera Sans",sans-serif;
+ color: #446;
+ background-color: #eec;
+}
+
+a {
+ color: navy;
+}
+a:visited {
+ color: purple;
+}
+
+a:hover {
+ color: white;
+ background-color: #446;
+}
+
+table,pre {
+ background-color: #ffe;
+ border: solid #eec 1px;
+ padding: 0.2em;
+ color: #224;
+}
+
+table{
+ border: none;
+ border-collapse: collapse;
+}
+
+table.noborder {
+ border: none;
+}
+
+th,tr,td {
+ padding: 0.2em;
+ border: solid #ddb 1px;
+}
+
+table.noborder th,table.noborder tr,table.noborder td {
+ border: none;
+}
+
+tt,code {
+ font-family: "Bitstream Vera Sans Mono",monospace;
+}

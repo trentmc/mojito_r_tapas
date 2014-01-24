@@ -1,0 +1,246 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<!-- $Id: 2-concepts.html,v 2.20 2007/02/11 13:56:41 irmen Exp $ -->
+<head>
+  <title>PYRO - Concepts</title>
+  <link rel="stylesheet" type="text/css" href="pyromanual_print.css" media="print">
+  <link rel="stylesheet" type="text/css" href="pyromanual.css" media="screen">
+</head>
+
+<body>
+  <div class="nav">
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="1-intro.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "3-install.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table>
+<hr></div>
+
+  <h2><u>2. Pyro Concepts</u></h2>
+
+  <ul>
+    <li><a href="#intro">Introduction</a></li>
+
+    <li><a href="#scripts">Pyro shell scripts</a></li>
+
+    <li><a href="#client">Client program</a></li>
+
+    <li><a href="#server">Server program</a></li>
+
+    <li><a href="#obj">Remote object</a></li>
+
+    <li><a href="#proxy">Proxy</a></li>
+
+    <li><a href="#daemon">Pyro daemon</a></li>
+
+    <li><a href="#naming">Location discovery and Naming</a></li>
+
+    <li><a href="#protocol">Communication protocol</a></li>
+
+    <li><a href="#excep">Exceptions</a></li>
+
+    <li><a href="#log">Logging</a></li>
+  </ul>
+
+  <h3><a name="intro" id="intro"></a>Introduction</h3>For a good understanding of Pyro it is necessary to know the
+  different elements in a Pyro system. This chapter summarizes them. Keep in mind that in a distributed object system,
+  the client/server style is difficult to see. Most of the time all parts of the system switch roles, one moment it's a
+  client calling a remote object, the other moment it is itself an object that is called from other parts of the
+  system. For a good understanding though, it is important to see that during a single method call, there are always
+  two distinct parts of the system: the client part that initiates the method call, and the server part that accepts
+  and executes the call. To be precise, there are actually three parts: between the client and the server is the
+  distributed object middleware, in this case: Pyro.
+
+  <p>Another issue is that a client can - of course! - use more than one remote object, but also that a single server
+  can have more than one object implementation. Thus, single objects in their own right are neither a client nor a
+  server. I'll define the executable parts of the system that contain the objects as clients and servers (depending on
+  their actual role). For simple Pyro applications, usually the different Python modules clearly show the different
+  parts of the system, and they are the clients and servers I'm talking about here.</p>
+
+  <p>If you want a technical and more in-depth description of the material presented here, read <a href=
+  "11-implementation.html">the chapter on Pyro's implementation</a>, or just browse the source code.</p>
+
+  <h3><a name="scripts" id="scripts"></a>Pyro shell scripts</h3>Pyro provides several tools to help you during
+  development of a Pyro application. The Pyro Name Server is also started and controlled by two of these scripts. See
+  the chapter on the Name Server for more information about them.
+
+  <h3><a name="client" id="client"></a>Client program</h3>This is the part of your system that sends requests to the
+  server program, to perform certain actions. It's the code that actually uses the remote objects by calling their
+  methods.<br>
+  Pyro client programs look suspiciously like normal Python programs. But that's the whole point of Pyro: it enables
+  you to build distributed object systems with minimal effort. It makes the use of remote objects (almost)
+  transparent.<br>
+  Client code has to perform some initialization and setup steps. And because we're talking remote objects here, they
+  cannot create object instances in the usual way. They have to use a two-step mechanism:
+
+  <ol>
+    <li>Find the location identifier of the required object. This is done by using the Pyro Name Server, see
+    below.</li>
+
+    <li>Create a special kind of object that actually calls the remote object. This is called a <em>proxy</em>, see
+    below.</li>
+  </ol>Once it has this <em>proxy</em> object, the client can call it just as if it were a regular -local- Python
+  object.
+
+  <h3><a name="server" id="server"></a>Server program</h3>The server is the home of the objects that are accessed
+  remotely. Every object instance has to be part of a Python program, so this is it. The server has to do several
+  things:
+
+  <ol>
+    <li>Create object instances using a extremely tiny bit of Pyro plumbing</li>
+
+    <li>Give names to those instances, and register these with the Name Server</li>
+
+    <li>Announce to Pyro that it has to take care of these instances</li>
+
+    <li>Tell Pyro to sit idle in a loop waiting for incoming method calls</li>
+  </ol>
+
+  <h3><a name="obj" id="obj"></a>Remote object</h3>Aside from the restrictions given in the <a href=
+  "7-features.html#rules">Features and Guidelines</a> chapter, Pyro object is just a regular Python object. The object
+  doesn't know and doesn't have to know it's part of a Pyro server, and called remotely.
+
+  <h3><a name="proxy" id="proxy"></a>Proxy</h3>A <em>proxy</em> is a special kind of object that acts as if it were the
+  actual -remote- object. Pyro clients have to use proxies to forward method calls to the remote objects, and pass
+  results back to the calling code. Pyro knows two kinds of proxies, and you are free to chose from them:
+
+  <ol>
+    <li>Dynamic proxy.<br>
+    This is a very special Python object provided by Pyro. It is a general proxy for all remote objects!</li>
+
+    <li>Dynamic proxy with attribute access support.<br>
+    This allows you to access object attributes directly with normal Python syntax (for instance, <code>print
+    RemoteObj.name</code> prints the attribute 'name' of the remote object 'RemoteObj'). Because this
+    requires even more builtin logic, this proxy is a few percent slower than the others. You can choose
+    to use this proxy, or one of the others. <em>Note:</em> pay attention to the following issue when
+    using attribute proxies: they might raise unexptected exceptions on the client! If your attribute
+    is an object of a certain class that is available on the server, but <em>not</em> on the client,
+    you will not be able to access the attribute on the client! Also, when you are using 'nested' attributes
+    (such as <code>RemoteObj.person.address.street</code>) you must make sure that all
+    needed classes (and modules) are available on the client. It is perhaps easiest to put such classes
+    in separate modules and place them somewhere where the client is able to import them. An explicit
+    import statement is not necessary in the client. When done correctly, you're also able to call 'nested'
+    methods such as
+    <code>RemoteObj.person.address.getStreet()</code>. The &quot;attributes&quot; example shows how it's done. <strong>But
+    there are some serious pitfalls when using 'nested' attribute or method access! Please read the info
+    about this in the
+    <a href="7-features.html#nestedattrs">Features and Guidelines</a> chapter!</strong></li>
+  </ol>Proxies are bound to certain location identifiers, so they know on whose behalf the're running.
+
+  <p>Proxy objects can be pickled: you can toss proxy objects around within your Pyro system. For more
+      info see the
+  <a href="7-features.html#rules">guidelines</a> in the &quot;<a href="7-features.html">Features and
+  Guidelines</a>&quot;
+  chapter.</p>
+
+  <h3><a name="daemon" id="daemon"></a>Pyro daemon</h3>It's getting more technical now. Each server has to have a way
+  of getting remote method calls and dispatching them to the required objects. For this task Pyro provides a
+  <em>Daemon</em>. A server just creates one of those and tells it to sit waiting for incoming requests. The Daemon
+  takes care of everything from that moment on. Every server has one Daemon that knows about all the Pyro objects the
+  server provides.
+
+  <h3><a name="naming" id="naming"></a>Location discovery and naming</h3>One of the most useful services a distributed
+  object system can have is a <em>Name Server</em>. Such a service is a central database that knows the names and
+  corresponding locations of all objects in the system.<br>
+  Pyro has a Name Server that performs this task very well. Pyro Servers register their objects and location with the
+  Name Server. Pyro Clients query the server for location identifiers. They do this by providing (human-readable)
+  object names. They get a Pyro Universal Resource Identifier (URI) in return (which is not intended for humans.
+  However, as it is, the current PYRO URIs look just like WWW URLs and can be read quite nicely).<br>
+  You might be wondering: how can a Pyro client find the Name Server itself?! Good question. There are three
+  possibilities:
+
+  <ul>
+    <li>Rely on the broadcast capability of the underlying network. This is extremely easy to use (you don't have to do
+    anything!) and works in most cases.</li>
+
+    <li>Somehow obtain the hostname of the machine the Name Server is running on. You can then directly contact this
+    machine. The Name Server will respond with its location identifier.</li>
+
+    <li>Obtain the location identifier using another way such as file transfer or email. The Name Server writes its
+    location identifier to a special file and you can read it from there. Then you can create a Name Server proxy
+    directly, bypassing the Name Server Locator completely.</li>
+  </ul>Object names can be anything you like as long as there isn't another object with that name already. So it's good
+  practice to use some sort of hierarchical naming scheme, just like Java uses for Java package naming. This reduces
+  the risk of naming clashes dramatically. In fact, Pyro's Name Server is a fully hierarchical naming service that has
+  a filesystem-like directory structure of groups and object names in those groups. See <a href="5-nameserver.html">the
+  Name Server chapter</a> for a description of the naming scheme.<br>
+  <strong>Notice:</strong> the <code>Pyro.xxxxx</code> namespace is reserved for Pyro itself (for instance, the Name
+  Server is called <code>Pyro.NameServer</code>). Don't use it.
+
+  <p>There are two other ways to connect to a certain object you know the name of. These are the
+  <code>PYRONAME://</code> and the <code>PYROLOC://</code> URI formats, instead of the regular <code>PYRO://</code>
+  URIs. The first is essentially a shortcut to the Name Server; it will find and query the Name Server under the
+  surface (you don't have to do anything). The second bypasses the Name Server completely and directly queries a Pyro
+  server host for the required object. You can find more information on these two methods in <a href=
+  "5-nameserver.html">the Name Server chapter</a>.</p>
+
+  <h3><a name="protocol" id="protocol"></a>Communication protocol</h3>The communication between a client and a server
+  basically consists of two kinds of messages:
+
+  <ul>
+    <li>Method call request.<br>
+    This message consists of some identification of the target object, the method called, and the arguments for this
+    call.</li>
+
+    <li>Return value reply.<br>
+    This message is no more than the return value of the method call.</li>
+  </ul>By default Pyro uses the PYRO protocol (duh!) that relies on Python's built-in <code>pickle</code> facility to
+  create these messages. The transport over the network is done using TCP/IP. The way I designed Pyro should make it
+  easy to use other protocols, but for now, only the PYRO protocol is implemented.
+
+  <p>Because PYRO uses <code>pickle</code>, everything that has to go over the wire should be pickleable. If you are
+  using objects that can't be pickled, you will get a <code>TypeError</code>. Examples of objects that cannot be
+  pickled are file objects and socket objects. Pyro can also use other marshaling methods (like XML marshaling) but
+  still, the data you're transmitting must be pickleable. Transmitting file objects is impossible for instance.</p>
+
+  <p>A different protocol is used for the initial communication with the Name Server. Pyro uses UDP broadcasting over
+  IP to discover the Name Server in the local subnet, and asks it to report back. Once Pyro knows the location ID of
+  the Name Server, it switches to the PYRO protocol, because the Name Server is just another Pyro object!</p>
+
+  <h3><a name="excep" id="excep"></a>Exceptions</h3>What happens when an error occurs in your server? Pyro can't help
+  you when your server crashes. But it does catch the Python exceptions that occur in your remote objects. They are
+  sent back to the calling code and raised again, just as if they occurred locally. The occurrence is logged in the
+  server log. Thus, Pyro makes no distinction between user generated exceptions (in the remote object) or exceptions
+  that occur because of runtime errors, such as divide by zero.
+
+  <p>The client has no way of telling whether the exception was raised locally or in the remote object. Well, there is
+  a way, but you should really not depend on it. It's only to facilitate debugging in case of a remote exception (the
+  remote exception is contained within the local exception). Any errors from Pyro itself will be signaled by a
+  <code>PyroError</code> exception or one of its exception subclasses.</p>
+
+  <p>There is a slight problem with this scheme: traceback objects and stack traces are virtually meaningless if the
+  exception occurred in the remote object. However, Pyro comes to the rescue: the stack trace of the <em>remote</em>
+  exception is passed over the network to the calling object and can be printed there by using a utility function. So
+  it is possible to see what remote code caused the problem.</p>
+
+  <h3><a name="log" id="log"></a>Logging</h3>A good trace facility is paramount in a complex system. Therefore Pyro
+  provides a simple to use logger. It writes messages to a configurable logfile, annotated with a timestamp. It
+  distinguishes errors, warnings and regular notices. Pyro uses it depending on the tracelevel you configured.
+
+  <p>You can use the logging facility in your own code too. There is a special user version of the logger that operates
+  independently of the Pyro system logger. You can configure the trace level and logfile location uniquely for both
+  loggers.</p>
+
+  <p>By default, logging is turned off completely. You can simply turn it on during the course of your program's
+  execution, or beforehand by setting a simple Pyro configuration option.</p>
+
+  <p>If it is available Pyro can also use the standard (or defacto) Python logging functionality from the
+  <code>logging</code> module. Enable this by setting the PYRO_STDLOGGING config item to 1 (see config chapter). Also
+  you can specify an alternate path for the logging configuration file via the PYRO_STDLOGGING_CFGFILE config item (see
+  config chapter).</p>
+  
+  <div class="nav">
+  <hr>
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="1-intro.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "3-install.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table></div>
+</body>
+</html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<!-- $Id: 1-intro.html,v 2.27.2.4 2008/05/16 20:09:20 irmen Exp $ -->
+<head>
+  <title>PYRO - Introduction</title>
+  <link rel="stylesheet" type="text/css" href="pyromanual_print.css" media="print">
+  <link rel="stylesheet" type="text/css" href="pyromanual.css" media="screen">
+</head>
+
+<body>
+  <div class="nav">
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="PyroManual.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "2-concepts.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table>
+<hr></div>
+  <!-- ******************* INTRODUCTION ******************** -->
+
+  <h2><u>1. Introduction</u></h2>Thank you for choosing the often regarded number one Remote Method Invocation package
+  for Python!
+<p>
+ Pyro is short for PYthon Remote Objects. It is an advanced and powerful 
+ Distributed Object Technology system written entirely in Python, that is 
+ designed to be very easy to use. Never worry about writing network 
+ communication code again, when using Pyro you just write your Python objects 
+ like you would normally. With only a few lines of extra code, Pyro takes care 
+ of the network communication between your objects once you split them over 
+ different machines on the network. All the gory socket programming details are 
+ taken care of, you just call a method on a remote object as if it were a local 
+object!</p>
+<p>
+Pyro provides an object-oriented form of RPC. You can use Pyro within a single 
+system but also use it for IPC. For those that are familiar with Java, Pyro 
+resembles Java's Remote Method Invocation (<a href="http://java.sun.com/products/jdk/rmi/index.html">RMI</a>).
+It is less similar to <a href="http://www.omg.org/gettingstarted/corbafaq.htm">CORBA</a> -
+which is a system- and language independent Distributed Object Technology and 
+has much more to offer than Pyro or RMI. 
+But Pyro is <strong>small</strong>, <strong>simple</strong>,
+  <strong>fun</strong> and <strong>free</strong>! For another overview of what Pyro is, see the Pyro page online
+  (<a href="http://pyro.sourceforge.net/">http://pyro.sourceforge.net/</a>). You can also download the package from
+  there.</p>
+
+<p><strong>Copyright and Disclaimer</strong><br>
+  This software is copyright &copy; by Irmen de Jong. It is subject to change without notice. Pyro comes
+  as-is, without warranty and in no event can Irmen de Jong be held liable for any problems resulting
+  from this software. License: Pyro is released under the MIT license, see the file &quot;<a href="LICENSE">LICENSE</a>&quot;.</p>
+
+  <p><strong>Security Warning</strong><br>
+  <em>In the Security chapter is an <a href="9-security.html">important security warning</a> that you absolutely must
+  read!</em></p>
+
+<p><strong>Features</strong></p>
+    <ul>
+      <li>Written in 100% pure Python. It is small, simple and extremely portable - it runs everywhere Python runs and TCP/IP networking is available.</li>
+      <li>Naming Service which keeps record of the location of objects. The location of the NS can be discovered by a broadcast mechanism, and various other ways, if your network doesn't support broadcasting. NS has option to keep its naming database persistent (on disk) so that it survives shutdowns. </li>
+      <li>High-level Event Service with topic channels.</li>
+      <li> Mobile objects. Clients and servers can pass objects around - even when the server has never known them before. Pyro will then automatically transfer the needed Python bytecode.</li>
+      <li>Support for Python types only restricted by those that the standard 'pickle' module handles (all builtin types, and user created classes) Objects as arguments are also supported.</li>
+      <li>Support for all Python argument types (variable argument lists and keyword arguments, <code>*args</code> and <code>**keywords</code>).</li>
+      <li>Exceptions that occur in the remote object will actually be raised too on the client, just as if the error occured locally. Pyro's exception transportation mechanism makes this possible.</li>
+      <li>Dynamic Proxies - no need for additional tools or classes.</li>
+      <li>Direct remote attribute access with normal Python syntax.</li>
+      <li>Server can dynamically create or remove new Pyro objects.</li>
+      <li>Multithreaded server support to handle multiple requests simultaneously.</li>
+      <li>Automatic reconnection in case of network connection failures.</li>
+      <li>Fast one-way invocation possible.</li>
+      <li>Pyro contains heavily tested network communication code that works reliable on all platforms </li>
+      <li>Talk between 32-bit and 64-bit machines, regardless of processor architecture and operating system</li>
+      <li>A lot of examples are included in the Pyro distribution!</li>
+    </ul>
+
+
+  <p><strong>To get an idea of how Pyro works, here is a scenario:</strong></p>
+
+  <ol>
+    <li>You write a module '<code>test</code>' containing a class '<code>testclass</code>', which will be accessed
+    remotely.</li>
+
+    <li>The server creates one or more instances of the '<code>testclass</code>', and registers them with the Pyro Name
+    Server.</li>
+
+    <li>The client queries the Name Server for the location of those objects. It gets a Pyro URI (Universal Resource
+    Identifier) for them.</li>
+
+    <li>The client creates proxies for the remote objects.</li>
+
+    <li>Because the proxy mimics the real '<code>testclass</code>', the client can now invoke methods on the remote
+    objects. The proxy will forward the method invocations and return the results, just as if it was the remote object
+    itself. Not a single line of network communication code has been written.</li>
+  </ol>This looks like a big oversimplification, but it isn't!
+
+  <p>To dive directly into the code, have a look at the various Pyro examples in the <code>examples</code> directory
+  (read the <code>Readme.txt</code>). There is much to learn there. The easiest example to start with
+  is the &quot;simple&quot;
+  example, it shows how a normal python object is made into a Pyro object and accessed remotely from
+  the client.</p>
+
+  <p><strong>Required Software:</strong></p>
+
+  <ul>
+    <li>This version of Pyro needs at least Python 2.3. However, it is strongly recommended to use the latest Python
+    version available (at the time of writing 2.5).</li>
+
+    <li>You will have to use the same major Python version everywhere to make sure the data format is compatible (if
+    you are using the default builtin pickle protocol)</li>
+
+    <li>Because basic Pyro does not depend on any third party libraries or extension modules, it runs wherever Python
+    is available, however, the command line utility scripts are designed for Windows(NT) and Unix sh. You might
+    experience problems trying to run them on other systems.</li>
+
+    <li>The <code>pyro-xnsc</code> tool requires the Tkinter Python extension module, with Tcl/Tk installed.</li>
+
+    <li>The <code>pyro-wxnsc</code> tool requires the WxPython extension module with WxWindows.</li>
+  </ul>
+
+  <p><strong>Important information Links</strong></p>
+
+  <ul>
+    <li><a href="http://pyro.sourceforge.net">Pyro's home page</a></li>
+
+    <li><a href="http://www.sourceforge.net/projects/pyro">Pyro Sourceforge project page</a></li>
+
+    <li><a href="http://www.razorvine.net/python/AboutPyro">Pyro Wiki pages</a>, including the online <a href=
+    "http://www.razorvine.net/python/PyroTodoList">Todo list</a>.</li>
+
+    <li>Info about the <a href="http://lists.sourceforge.net/lists/listinfo/pyro-core">Mailing list</a>, which is the
+    best way of getting help.</li>
+  </ul>
+
+  <p><strong>Related technology</strong></p>
+
+  <ul>
+    <li>Java Remote Method Invocation (<a href="http://java.sun.com/javase/technologies/core/basic/rmi/index.jsp">RMI</a>)</li>
+    <li>Common Object Request Broker Architecture (<a href="http://www.omg.org/gettingstarted/corbafaq.htm">CORBA</a>)</li>
+    <li><a href="http://omniorb.sourceforge.net/">OmniORB</a> - a CORBA implementation with Python bindings</li>
+    <li><a href="http://pybuild.sourceforge.net/pyinvoke.html">PyInvoke</a> and <a href="http://rpyc.wikispaces.com/">RPyC</a> - remote method calls in Python</li>
+  </ul>
+
+  <p><strong>Thanks</strong></p>
+
+  <p>I want to thank everybody on the <a href="http://lists.sourceforge.net/lists/listinfo/pyro-core">Pyro mailing
+  list</a>, your participation is of great value. And to everybody who contacted me about Pyro, for positive remarks,
+  comments, or with problems (it all helps to improve Pyro): Thank You!</p>
+
+  <p>If you appreciate my efforts and would like to express your appreciation by a <a href=
+  "http://sourceforge.net/donate/index.php?group_id=18837">cash donation</a>, that is gladly accepted. But because I'm
+  doing Pyro for fun, I've decided to support the PSF by making all donations trough SourceForge go to the <a href=
+  "http://www.python.org/psf/">Python Software Foundation</a>.</p>
+
+  <div class="nav">
+  <hr>
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="PyroManual.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "2-concepts.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table></div>
+</body>
+</html>

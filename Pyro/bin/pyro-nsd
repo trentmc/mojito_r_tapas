@@ -1,0 +1,27 @@
+#!/users/micas/ppalmers/bin/python
+
+#############################################################################
+#  
+#	$Id: pyro-nsd,v 1.2.2.2 2008/05/05 00:13:03 irmen Exp $
+#	Pyro Name Server Unix Daemon
+#	Author: Jeff Bauer  (jbauer@rubic.com)
+#	This software is released under the MIT software license.
+#
+#	This is part of "Pyro" - Python Remote Objects
+#	which is (c) Irmen de Jong - irmen@users.sourceforge.net
+#
+#############################################################################
+
+import os, sys
+import Pyro.naming
+from Pyro.ext.daemonizer import Daemonizer
+
+class NSD(Daemonizer):
+    def __init__(self):
+        Daemonizer.__init__(self)
+
+    def main_loop(self):
+        Pyro.naming.main(sys.argv[1:])
+
+if __name__ == "__main__":
+    NSD().process_command_line(sys.argv)

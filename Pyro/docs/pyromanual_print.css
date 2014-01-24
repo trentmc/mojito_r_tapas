@@ -1,0 +1,41 @@
+body {
+ font-family: Tahoma,helvetica,sans-serif;
+ font-size: 10pt;
+}
+
+div.nav {
+	display: none;
+}
+
+h1,h2,h3,h4,h5,h6,h7 {
+ font-family: "Trebuchet MS",Tahoma,helvetica,sans-serif;
+ color: #444;
+ background-color: #eee;
+}
+
+table,pre {
+ border: solid #888 1px;
+ padding: 0.2em;
+}
+
+table{
+ border: none;
+ border-collapse: collapse;
+}
+
+table.noborder {
+ border: none;
+}
+
+th,tr,td {
+ padding: 0.2em;
+ border: solid #888 1px;
+}
+
+table.noborder th,table.noborder tr,table.noborder td {
+ border: none;
+}
+
+tt,code {
+ font-family: "Bitstream Vera Sans Mono", mono;
+}

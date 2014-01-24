@@ -1,0 +1,783 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<!-- $Id: 7-features.html,v 2.55.2.4 2008/05/18 21:24:39 irmen Exp $ -->
+<head>
+  <title>PYRO - Features and Guidelines</title>
+  <link rel="stylesheet" type="text/css" href="pyromanual_print.css" media="print">
+  <link rel="stylesheet" type="text/css" href="pyromanual.css" media="screen">
+</head>
+
+<body>
+  <div class="nav">
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="6-eventserver.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> |
+      <a href="8-example.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table>
+<hr></div>
+
+  <h2><u>7. Features and Guidelines</u></h2>
+  This chapter discusses some of the more technical features of Pyro, that
+  don't fit in elsewhere. Also it provides some guidelines you must follow when developing with Pyro.
+
+  <ul>
+    <li><a href="#nestedattrs">Nested attribute access</a></li>
+
+    <li><a href="#autorebind">Automatic rebinding</a></li>
+
+    <li><a href="#mobile">Mobile code</a></li>
+
+    <li><a href="#multithreading">Multithreading in Pyro</a></li>
+
+    <li><a href="#tls">Thread Local Storage in Pyro objects</a></li>
+
+    <li><a href="#dnsip">DNS, IP addresses and firewalls</a></li>
+
+    <li><a href="#callback">Callbacks and Oneway calls</a></li>
+
+    <li><a href="#exc">Dealing with exceptions</a></li>
+
+    <li><a href="#daemon">Remotely accessing the Daemon</a></li>
+
+    <li><a href="#timeout">Timeouts and cleaning up unused objects</a></li>
+
+    <li><a href="#rules">Usage rules and guidelines</a></li>
+  </ul>
+
+  <h3><a name="nestedattrs" id="nestedattrs"></a>Nested attribute access</h3>As we've already seen in the <a href=
+  "2-concepts.html#proxy">Pyro Concepts</a> chapter, there is a special Dynamic Proxy that allows direct remote
+  attribute access on Pyro objects. You can use normal Python syntax for this (for instance, <code>print
+  RemoteObj.name</code> prints the attribute 'name' of the remote object 'RemoteObj'). There are a few important points
+  to keep in mind when you're using this:
+
+  <ul>
+    <li>If attributes are objects of a certain class, that class (i.e. the module it's in) must be available on the
+    client also. If it's not, you won't be able to access this attribute directly. You'll need to write classic getters
+    and setters in this case.</li>
+
+    <li>The above is also valid when you are using 'nested' attributes (such as
+    <code>RemoteObj.person.address.street</code>) or 'nested' method calls (such as
+    <code>RemoteObj.person.address.getStreet()</code>): the rule counts for <em>each attribute</em>.</li>
+  </ul>For a better understanding why these rules have to be followed, I'll try to explain exactly what happens when
+  accessing attributes on a Pyro proxy:
+
+  <p>When you call <code>object.sub1.sub2</code> where <code>object</code> is a Pyro proxy to your Pyro server object,
+  Python processes the statement left-to-right. First Python wants to get the <code>sub1</code> attribute from
+  <code>object</code>. So Pyro intercepts a getattr call from Python and the remote Pyro object returns the
+  <code>sub1</code> attribute. Unfortunately, this value is an object (i.e. a class instance)! The client receives a
+  class instance of a class it doesn't know about! (that's the reason it crashes with AttributeError: 'module' object
+  has no attribute 'SomeClass', when the class of the attribute object is not available on the client).</p>
+
+  <p>The easiest way to solve this is to add a delegation method to your Pyro object (something like
+  <code>getSub2()</code> that returns <code>self.sub1.sub2</code>. Then, don't access the <code>object.sub1.sub2</code>
+  attribute directly, but get it with <code>object.getSub2()</code>. The other solution is to make the class available
+  to the client process: put it in a separate module and place the module somewhere the client code has access to (i.e.
+  it must be able to import it). An explicit import statement is not necessary.</p>
+
+  <p><strong>But there is a serious, confusing issue with nested attributes: you will have a <em>local</em> object
+  instead of the <em>remote</em> object!</strong> <em>What's going on:</em> Say you took care of supplying all needed
+  modules and classes to both server and client. Then you want to access <code>object.sub1.sub2</code>. <em>What you
+  get is the <code>sub2</code> attribute of a LOCAL sub1 object instance!</em> This is no problem when you just want to
+  read the value, but it is a huge problem when you want to perform some actions on this attribute, or change the
+  value! This will be performed <em>in your client, not in the server object</em>!</p>
+
+  <p>Explanation: as pointed out above, Python searches for <code>sub1</code> in <code>object</code>. Because Pyro
+  intercepts the getattr call, you get the <em>remote</em> <code>sub1</code> object. Its state is pickled on the server
+  (by Pyro) and unpickled on the client (by Pyro), thereby recreating the remote <code>sub1</code> object <em>on the
+  client</em>. Only after that, Python looks up <code>sub2</code> in <code>sub1</code>. What happens is that Python
+  itself returns you the <code>sub2</code> attribute of the <em>local</em> <code>sub1</code> object! If you call
+  methods on that object, or change it's value, that will only happen on the (temporary) local <code>sub2</code>! All
+  changes are lost because they're not propagated to the server!</p>
+
+  <p>Currently the only working solution for this problem is to use extra methods on your original Pyro server object,
+  that manipulate the <code>sub2</code> object on the server (for instance, you should call
+  <code>object.setSub2(newvalue)</code> to update <code>sub2</code>'s value on the server, instead of
+  <code>object.sub1.sub2=newvalue</code>).</p>
+
+  <p>Note that this problem only occurs when you're using nested attribute access. Manipulating the attributes of
+  <code>object</code> itself (the Pyro proxy) is no problem, because all attribute accesses (read and write) are
+  intercepted by Pyro and are remoted to the actual server object.</p>
+
+  <h3><a name="autorebind" id="autorebind"></a>Automatic rebinding</h3>
+  Pyro has an &quot;auto rebind&quot; feature. This means
+  that - with a little help of yourself - your clients can recover from network errors that kill the
+  connection with the server. More specifically, when your client detects a problem with the network
+  (<code>ConnectionClosedError</code> or even <code>ProtocolError</code>) it can use a special 'hidden'
+  method of the internal Pyro protocol adapter object to request it to reconnect to the server:
+
+  <dl>
+    <dt><code>yourpyroobject.adapter.rebindURI()</code></dt>
+
+    <dd>You can supply two arguments if desired, <code>tries</code> and <code>wait</code>. The first is the number of
+    retries that is performed (default: sys.maxint), the second is the delay time between each retry in seconds
+    (default: 1).</dd>
+  </dl>NOTES:
+
+  <ol>
+    <li>If your server crashes, and you want to restart it and let the clients reconnect to it, the server has to be
+    prepared for this feature. It must not rely on any transient internal state to function correctly, because that
+    state is lost when your server is restarted.</li>
+
+    <li>Your server <em>must</em> register the objects with the <code>connectPersistent</code> method of the
+    PyroDaemon. Otherwise the reconnect feature <em>does not work</em> because the client tries to access an invalid
+    URI. The <code>connectPersistent</code> method reuses the object's URI that is still known in the Name Server. It's
+    no problem to always use <code>connectPersistent</code> instead of the regular <code>connect</code>, but there is a
+    naming lookup overhead per call.</li>
+
+    <li>The NS does <em>not</em> have to be the persistent version on disk, as long as it keeps running. All that is
+    needed is that the URI of the objects concerned stay available in the NS, so the server can reuse those URIs when
+    it comes up again. When the NS dies, you're in deep trouble, unless it was the persistent NS, that reloads its
+    naming database when it comes up again.</li>
+
+    <li>The client is responsible for detecting a network problem itself. It must call the 'hidden'
+    <code>rebindURI</code> method of the object's protocol adapter itself if this is the case.</li>
+
+    <li>The method call that triggered the auto rebind is likely lost, i.e. it almost certainly has not been executed.
+    You have to call it again explicitly if you want to be sure that it has been executed. However, it might be the
+    case that the server received the call and that the connection was lost <em>after</em> the server executed the call
+    but <em>before</em> returning the result. Calling the method again will result in two executions on the server.
+    This is all usual transaction semantics stuff, and Pyro effectively gives you at-most-once semantics (methods are
+    called zero or one times in case of failure).</li>
+  </ol>
+  You're probably wondering &quot;Why isn't this transparent? Why no PYRO_AUTOREBIND config item?&quot; The
+  answer is: because you <em>have</em> to have control about it when a network problem occurs. Furthermore,
+  only <em>you</em> can
+  decide if your system needs this feature, and if your system <em>can support</em> this feature (see
+  points 1 and 2 above).
+
+  <p>About the difference between the exceptions that you can catch: You get a <code>ConnectionClosedError</code> when
+  Pyro was able to establish a connection initially, but the connection gets interrupted later (because of network
+  problems or something like that). You get a <code>ProtocolError</code> ('connection failed') when Pyro was unable to
+  establish a connection at all, for instance, when the Pyro daemon on the server isn't running or reachable at the
+  time Pyro tries to establish a connection. It is debatable if we should talk about <em>reconnection</em> in the
+  second case, because there has never been a connection to begin with. But, if you want to handle this case too, just
+  catch a <code>ProtocolError</code> instead of <code>ConnectionClosedError</code>.</p>
+
+  <p>Examine the example code provided in the &quot;autoreconnect&quot; example, and Pyro's internal adapter
+      code, to see how the rebind feature works.</p>
+
+  <h3><a name="mobile" id="mobile"></a>Mobile code</h3>Pyro supports the concept of <em>mobile code</em> (albeit with a
+  few limitations). What does this mean? Imagine a Pyro object that accepts other objects as arguments in its methods.
+  It will invoke various methods on these objects as they were passed in from the client. The client can pass any
+  object as an argument to a remote method call. What happens on the server is that as soon as the method call arrives,
+  Pyro needs the Python module that contains the code for the objects that were passed in. If this module is not
+  available, you'd normally get an <code>ImportError</code>. However, Pyro intercepts this and returns a
+  <code>NoModuleError</code>.
+
+  <p>Unless you enable <code>PYRO_MOBILE_CODE</code>. Now, Pyro <em>internally</em> returns a special code, which makes
+  the client submit the missing Python code to the server. Pyro then <em>proceeds as if nothing was wrong</em>, i.e. it
+  can now load the previously missing module and call those objects! This happens automatically, you only have to
+  enable mobile code on the server by setting the <code>PYRO_MOBILE_CODE</code> config item to 1!</p>
+
+  <p>There is one more thing: loading and running arbitrary code is dangerous. Pyro has <em>codeValidators</em> to help
+  you protect your program; see the Security chapter for more info.</p>
+
+  <p>Pyro supports 2-way mobile code: your client can also receive code from the server that wasn't available before!
+  This means the server can return objects that are unknown in the client. The module(s) on the server that define
+  those objects will be sent to the client to make them available there, too. Just like enabling mobile code support on
+  the server, you have to enable <code>PYRO_MOBILE_CODE</code> on the client to allow mobile code downloading from the
+  server to the client. The codeValidator on the server checks <em>both</em> directions.</p>
+
+  <p>There are a few important limitations with the current mobile code implementation:</p>
+
+  <ul>
+    <li>Once the code is downloaded on the server, it stays there. It is not downloaded again. So there is a possible
+    version control issue here. If the server keeps running and the client has updated its mobile object code in the
+    meantime, the server will not notice this, and it will continue to use the previous (old) code.</li>
+
+    <li>You have to define any mobile objects in a separate Python module. Any mobile objects defined in the module
+    that runs as <code>__main__</code> will not work because of a Python peculiarity. There are no plans for including
+    a workaround in Pyro.</li>
+
+    <li><em>When you import other modules from your mobile object, you have to use the fully qualified
+            module name.</em> A package local name will not work. See the &quot;agent3&quot; example. You
+            cannot import other such packages at the module level or in <code>__init__</code>, you have
+            to import them from within the mobile object class methods.</li>
+
+    <li>Mobile code does not work over a oneway method call! Any method calls that use mobile code must be normal
+    calls. If you want to use oneway calls, first use a normal call (to transfer the agent) and then a second call
+    (that is oneway) to start it.</li>
+
+    <li>You have to use the same major Python version on all your systems where you use mobile code. For instance,
+    mixing Python 2.4 with 2.3.x doesn't work and <em>will</em> cause your program to fail. This is because the
+    bytecode format changes between major Python versions.</li>
+  </ul>
+
+  <p>It is perfectly ok to put your mobile object module in a Python package. If your codeValidator allows
+      it, your mobile object module can also import other modules that are unknown on the server (but
+      only from within the mobile object class members, not at the module level or from <code>__init__</code>).
+      They will be transported too (if you import them by their fully qualified name). It's easy enough
+      to write an appropriate codevalidator. If you don't want cascaded loading, check for specific module
+      names. If you want to allow cascaded loading, check for module name patterns, for instance allow
+      everything that starts with &quot;agent.&quot;. Have a look at the &quot;agent2&quot; example to see
+      how this all works.</p>
+
+  <p><em>Note:</em> if a compiled module (*.pyc or *.pyo) is available, Pyro will use that. If you have old *.pyc files
+  around made with a different Python version, Pyro will crash (with a syntax error) because it can't recognise these
+  compiled files and tries to compile them! Be sure to delete all *.pyc and *.pyo files if you switch Python
+  versions.</p>
+
+  <h3><a name="multithreading" id="multithreading"></a>Multithreading in Pyro</h3>Pyro has multithreading
+  support in Pyro servers. It is turned on by default. This means that you can have a Pyro server that processes multiple remote object invocations
+  in parallel. This is useful in cases where a single invocation takes a long time to complete. Without multithreading,
+  the next invocation has to wait before your server is finished with the current one. With multithreading, each
+  invocation runs in its own thread, and new invocations can be started while the others are still in progress.
+
+  <p>Another case where multithreading is necessary, is when you are using callbacks in your Pyro object (or when you
+  are calling other Pyro objects). Because this call may arrive at the same daemon, it must create a new thread to
+  handle the new incoming call. When running in single threaded mode, Pyro will freeze because the calls are waiting on
+  each other to be processed.</p>
+
+  <p>Pyro's use of threads on the server is as follows: the main daemon loop only waits for new connections. If a new
+  connection arrives, a new thread is created that will serve this connection. The thread will process incoming calls
+  sequentially, but that is good ofcourse since they can only arrive sequentially over the socket. The thread keeps
+  running while the connection is still there. Be aware of this: if you ^C a program, you abort the main loop but many
+  other threads might still be running. Pyro makes them 'daemon threads' so they will be terminated when your program
+  exits, but it is preferred to clean up the nice way: call <code>daemon.shutdown()</code> when your program exits.</p>
+
+  <p>Of course, a little overhead is introduced. You can see this quite clearly when you are running
+      the &quot;benchmark&quot;
+  example in single- and multithreaded mode. Pyro will default to the multithreaded mode if your system
+  supports it, because usually you'll need Pyro to be able to accept new invocations while others are
+  still in progress. If you want, use the <code>PYRO_MULTITHREADED</code> config item to switch to singlethreaded
+  mode (set it to zero). Pyro will default to single threaded mode if Python threads are not available.
+  Switching to multithreaded mode if Python threads are not available, by setting <code>PYRO_MULTITHREADED</code> to
+  1, <em>will crash Pyro</em>. Please use
+  <code>Pyro.util.supports_multithreading()</code> to test whether or not your system is able to use
+  multithreading.</p>
+
+<h4>Sharing proxies between threads</h4>
+  <p>In a multithreading scenario, the following is very important: <strong><em>you cannot share Pyro proxy objects between
+threads</em></strong>. Pyro <em>will</em> throw an exception when it detects invalid usage of proxies
+between different threads. (But read on, there is one exception to this rule)
+Notice that proxies for the Naming Server are no different and also have this restriction.</p>
+
+<p>Lets describe this restriction in some more detail. The problem is that once a proxy is connected to
+	the server object, only one thread at a time can make use of the proxy's connection.
+This also means that as long as the proxy is not connected, you can freely use it between threads.
+As soon as you connect the proxy (by calling remote methods) the active thread claims ownership of the proxy.
+No other thread can use the proxy now.
+So, how do you pass proxies around different threads? Use one of the following rules:</p>
+<ul>
+	<li>Create a proxy and hand it over to another thread before calling any remote method on it.</li>
+	<li>Let each thread resolve and obtain its own proxy object. That means, the only thing you share is the 
+	URI, and every thread does a lookup to get a proxy for that URI. It uses a connection for every thread, 
+	so it can be quite heavy on network resource usage. Also the Naming Server will get hammered.</li>
+	<li>Let each thread make a copy of a proxy for itself, by using <code>copy.copy(obj)</code>. (this avoids
+	the overhead of doing the lookup again for every thread, but it uses a connection for every thread, 
+	so it can be quite heavy on network resource usage.)</li>
+	<li>Release the proxy's connection by calling <code>_release()</code> on the proxy before handing it to another thread.
+		The proxy will be reconnected by the other thread. This can be slow if it occurs often,
+		and doesn't solve the problem of using a proxy simultaneously in multiple threads.</li>
+	<li>Manually transfer thread ownership by calling <code>_transferThread(newthread)</code> on the proxy. This is very
+		fast and avoids the need to release and reconnect, but it doesn't solve the
+		problem of using a proxy simultaneously in multiple threads. 
+		The method can be used in two ways:
+		<ol>
+		<li><code>_transferThread()</code> transfers ownership to the currently active thread</li>
+		<li><code>_transferThread(newthread)</code> transfers ownership to the specified thread. The parameter
+			must be a <code>threading.Thread</code> object.</li>
+		</ol>
+	</li>
+	<li>Note: just using thread locks around remote calls on the proxy does <em>not</em> work. You have to use one of the above as well, or Pyro
+		will still raise an error if you share it over threads.</li>
+</ul>
+<p>The most efficient way is probably using <code>copy.copy()</code> to make copies of a proxy that you want
+	to share in different threads. This includes the proxy for the Name Server. Letting every thread
+	do its own <code>getNS()</code> will be quite slow. Just resolve it once, and hand copies of the
+NS proxy to all threads that need it.</p>		
+<p><strong>There is one exception to this restriction however.</strong>
+If you have your own 'safety net' (such as proper thread locking) in place,
+which will prevent concurrent usage of a single proxy object,
+there is no reason why the proxy object could not be shared by multiple threads.
+If you set the config item <code>PYRO_PROXYSHARING_ENABLED</code> to 1 (default is 0, disabled),
+Pyro will not perform the proxy-thread check, and you are not required to implement
+one of the solutions mentioned above. Your code can freely pass proxies around as it wishes.
+But you have to be sure that you have some mechanism in your own code that takes
+care of proper thread locking around the proxy objects, or you will see Pyro protocol exceptions or
+other strange stuff happening.
+Have a look at the &quot;proxysharing&quot; example to see how this stuff works.
+</p>
+
+<h4>Threading issues in your Pyro objects (server/callback side)</h4>
+<p>Every remote method call is handled in a new thread. That means you have a problem when
+	you are holding a proxy inside your Pyro object, that you want to call. 
+(Unless the proxy arrived via a method parameter, see the paragraph &quot;Transferring proxies over remote calls&quot; below).	
+Probably the easiest thing to do is to just store the URI of the object you need to call,
+and resolve that into a new Proxy every time you need it. This is quite slow, however.
+Another solution might be to create a new copy of a given proxy everytime you need to call it.
+It is faster, but still has to create a new connection everytime.
+Perhaps the fastest, but ugliest, solution is to use a thread lock, transfer ownership
+to the current thread using <code>_transferThread()</code>, call the method, and release the thread lock.
+Yes, calling Pyro objects from within Pyro objects is not easy, but nothing can be done about it. 
+This thread safeness is needed to ensure error-free operation.
+But, maybe the next paragraph can help out in certain situations.
+</p>
+
+  <h4>Concurrent method invocations, or perhaps not: <code>Pyro.core.SynchronizedObjBase</code></h4>Be aware that your
+  Pyro objects can be accessed concurrently, i.e. method calls may occur simultaneously from different threads. It can
+  be hard in some cases to create a program that behaves correctly with this. For instance, often a shared data
+  structure may only be accessed by a single thread at the same time. To make it easier, there is the special
+  <code>Pyro.core.SynchronizedObjBase</code> base class that you can use instead of the regular
+  <code>Pyro.core.ObjBase</code>. When you use it, all (remote) method calls are automatically synchronized for you,
+  because a thread lock object is used for your Pyro object. This has a huge negative impact on heavily multithreaded
+  applications, but it saves you from much threading headaches. Note that other Pyro objects may still be accessed
+  concurrently. If you share data over different Pyro objects, <em>you</em> still have to make sure that everything
+  behaves in a thread-safe manner.
+  Note that when you use this object base class, you don't have most of the threading issues mentioned above
+  regarding further calls on proxies stored in your Pyro object, because you are running in
+  a single thread all the time. However, the thread is a different one every call so you still
+  have to transfer thread ownership on the proxy object!
+
+<h4>Transferring proxies over remote calls</h4>
+<p>It's possible to pass proxies as parameters to remote calls. 
+	They will be pickled and unpickled in the Pyro object on the other side.
+	Notice that the thread in which the call is executing on the remote side, is automatically taking ownership of the unpickled proxy object.
+	That means that you don't have to worry about any threading issues (mentioned above) when
+	you are using a proxy that you obtained via method parameters!
+	It could be a good idea to just pass callback objects via method parameters on each call,
+	instead of having the server store a callback object reference and the need to deal with all the
+	gory threading details described above. 
+</p>
+
+	
+  <h4>So when to use multithreading or not?</h4>There are four situations where you <em>don't</em> want multithreading:
+
+  <ul>
+    <li>Your platform/Python version doesn't support multithreading. Pyro will default to single threading mode if that
+    is the case, so you don't have to worry.</li>
+
+    <li>Your server is very much CPU bound, instead of I/O bound. Only I/O bound servers (this means: your system does
+    a lot of I/O and not many CPU-intensive calculations) will benefit from parallel processing, unless your hardware
+    is a multiprocessor system.</li>
+
+    <li>You are sure that there is only a very small number of clients (preferably only one). If there is only one
+    remote invocation in progress at a time, no multithreading is needed.</li>
+
+    <li>You don't like the performance overhead. Think twice here, because usually the overall performance of your
+    system will increase as the different client processes don't have to wait on each other.</li>
+  </ul>All other cases will likely benefit from a multithreaded server, or even require one (callbacks/calling other
+  Pyro objects!). Do some tests to find out what suits your needs better in your specific situation!
+
+  <p>The &quot;multithread&quot; example shows what's going on, and how multithreading can help to improve
+      performance and response times.</p>
+
+  <h3><a name="tls" id="tls"></a>Thread Local Storage in Pyro objects</h3>
+  Sometimes it is convenient to store some data
+  in a container that is local to the current thread. Other threads have no access to that data, and
+  you don't overwrite global data by accident when you use this kind of storage. Pyro has this; it's
+  called &quot;thread local storage&quot; (TLS) and can be accessed from within the remote methods of your
+  Pyro objects ( it exists only when your object is invoked by Pyro, so you cannot access it from your <code>__init__</code> method
+  for instance).
+
+  <p><strong>How do you gain access to the TLS?</strong> The <code>ObjBase</code> base class has a method
+  <code>getLocalStorage()</code> that returns an instance of a storage class to put your data in. (It
+  also works on platforms that don't have threads). The TLS object has one predefined attribute: <code>caller</code>.
+  This attribute contains the <code>Pyro.protocol.TCPConnection</code> object of the client that is performing
+  the current method call. It is advised to leave this alone, but you could do nasty things with this
+  if you want to (such as dropping the connection by calling <code>close()</code> on it). You might also
+  use the <code>caller</code> object to access any
+  specific data associated with the connection, that you have stored there yourself (for instance, the
+  authentication id placed as an attribute on it from within a custom connection validator). See the
+  &quot;user_passwd_auth&quot; example.</p>
+
+  <p><strong>How do you initialize the TLS?</strong> Pyro allocates the TLS as soon as it's needed. You cannot
+  initialize it when your objects are initialized because it doesn't exist yet at that time. Instead, you have to set a
+  custom init function in the Daemon using the <code>setInitTLS(initfunc)</code> method of the Daemon.
+  <code>initfunc</code> must be a callable object that takes a single argument: the TLS object to initialize.</p>
+
+  <p>When running in multithreaded mode the TLS is unique for each caller thread ofcourse, but also for each object:
+  every Pyro object has a different TLS. But it's best not to depend on that feature because it might change in the
+  future and it is already not true when you run in singlethreaded mode. In singlethreaded mode the TLS is an object
+  allocated in the Daemon, and it is shared across every Pyro object and every method invocation.</p>
+
+  <p>If you use <em>delegation</em> instead of inheriting from <code>ObjBase</code>, you cannot use TLS because you
+  don't have a means of getting to it (the getter is in <code>ObjBase</code>). This isn't bad because objects that use
+  delegation know nothing about Pyro in the first place. (Well, actually, there <em>is</em> a sneaky way of getting to
+  the TLS: use <code>threading.currentThread().localStorage</code> (it's an attribute of the current thread object).
+  But if you do use this, be aware that your delegate object becomes dependent on the Pyro environment, and you
+  probably chose to use delegation approach to avoid this!) Also, in a single-threaded environment, this is not
+  possible because the <code>threading.currentThread()</code> call might not be available. In any case, when Pyro is
+  running in single threaded mode, the current thread (or main thread) does <em>not</em> contain a
+  <code>localStorage</code> attribute. To avoid any problems, it is probably best not to use it at all. Remember that
+  you can use <code>self.getLocalStorage()</code> fine from a Pyro object that is inherited from
+  <code>Pyro.core.ObjBase</code>, even in single threaded mode!</p>
+
+  <h3><a name="dnsip" id="dnsip"></a>DNS, IP addresses and firewalls</h3>There are some issues to be aware of,
+  depending on your network configuration.
+
+  <p>Usually Pyro will locate its servers and objects using fixed IP numbers encoded in the Pyro URIs. This may or may
+  not be appropriate. For instance, when a machine has an IP number that is only temporary, such as DHCP-leased IP
+  numbers. The machine can get a new -different- IP number while Pyro is still running. URIs with the old IP number are
+  now invalid! Therefore it is possible to tell Pyro to use <em>symbolic DNS hostnames</em> in URIs instead of raw IP
+  numbers. Pyro will then use DNS to look up the actual IP number of the specified host (by name). You can enable this
+  by setting the <code>PYRO_DNS_URI</code> config item to <code>1</code>. However note that each time Pyro has to look
+  up a host, there is a DNS lookup delay.</p>
+
+  <p>If your machine has multiple IP addresses (for instance, when it has multiple network cards), you have to decide
+  on what IP address your Pyro servers reside. When you create a Pyro Daemon, use the <code>host</code> argument to
+  specify the hostname/ip address to bind the server on (defaults to '' - the default host). The Name Server can be
+  started with a <em>-n hostname</em> argument, to specify the hostname/ip address to bind on. 
+  You can also use the <code>PYRO_HOST</code> config item.</p>
+
+  <p>Another issue is when you're using Pyro behind a firewall. There is one specific form of firewalling
+      that is addressed in Pyro: simple <em>Network Address Translating</em> firewalls using port forwarding.
+      Let's say you're at 192.168.0.1 (a private address) behind a NAT gateway that's 192.1.1.1. You
+      have port forwarding on the NAT, so that Pyro requests go to the private box. However, with the
+      way that Pyro is set up by default, the daemon will publish URIs as though they come from 192.168.0.1
+      -- an address unavailable to the rest of the Net. There is no way to have 192.168.0.1 publish URIs
+      as though it were actually 192.1.1.1. But there is the extra <code>publishhost</code>
+  parameter for the constructor of <code>Pyro.core.Daemon</code>. When constructing a Pyro Daemon, you
+  can give it a special hostname or IP address that it should use when publishing URIs, via the <code>publishhost</code> parameter.
+  The <code>host</code> parameter still is the &quot;real&quot; hostname of the machine the daemon is running
+  on. When
+  <code>publishhost</code> is not specified (it isn't by default) the value for <code>host</code> is
+  taken. If that isn't specified either (it isn't by default) the hostname of the machine is queried
+  and that is used. In our little example, <code>host</code> should be <code>192.168.0.1</code> (or just
+  empty/omitted) and <code>publishhost</code>
+  should be <code>192.1.1.1</code>, the address of the firewall/gateway.
+  By the way, you can also use the <code>PYRO_PUBLISHHOST</code> config item to specify a publish hostname.</p>
+
+  <h3><a name="callback" id="callback"></a>Callbacks and Oneway calls</h3><em>Callbacks</em> are method invocations
+  that are 'reversed'-- the server calls your client. This is useful when the server is something that publishes
+  information, for instance, where the client cannot or doesn't want to poll for new info. Instead, the server calls a
+  method on a <em>callback</em> object on the client to let it know that something happened.
+
+  <p>Your client must publish a callback object that is a true Pyro object. In fact, for the callback
+      part, your client must act as a true Pyro server. So you have to code your client as both a client
+      and a server. This may require that your client must run a separate thread to handle Pyro messages
+      (the Pyro daemon loop must be running to accept incoming calls). If your client only sits idle,
+      and only waits for incoming callbacks, you can just run the daemon's
+  <code>requestLoop</code> in the main thread. Have a look at the &quot;callback&quot; example for more details.</p>
+
+  <p>Be very aware of threading issues. Callbacks occur in their own thread. A callback may even occur
+      while your client is still busy processing the previous callback. Your server should be even more
+      prepared for callbacks. Usually you have a method that &quot;registers&quot; a client as a callback
+      object. The client will call this method and has to pass a <em>proxy</em> to the callback object,
+      not the object itself! (see <a href="#rules">usage rules</a>,
+  below).</p>
+
+  <p><strong>Possible deadlock:</strong> if your objects enter a conversation, deadlock may occur easily. For instance,
+  A calls B, B calls back to A, A calls B again... deadlock! B was still waiting for A to answer the callback, but A
+  invokes a new method instead. Pyro cannot handle this yet. This issue might be addressed in a future Pyro version. In
+  the meantime, please read on about possible alternatives.</p>
+
+  <p>Your server usually has a list of callback objects that it should call. Be very careful here: a client can
+  unexpectedly disappear. You have to handle <code>ConnectionClosedError</code> exceptions and you must then remove the
+  defunct callback object from the list. But you have to do this in a thread-safe way (the list must be under a
+  thread-lock), because the server may be multithreaded! The server also has to handle any exceptions that occur in the
+  callback object on the client. Don't trust it. Catch any exception that occurs, otherwise your server dies.<br>
+  Be aware of a complex issue when your callback object raises an exception: if a callback occured in a remote method,
+  that was called by the client, the exception might travel right back to the client if the server doesn't take
+  precautions!</p>
+
+  <p>Not strictly callbacks, but when your Pyro object is calling other Pyro objects, you <em>have to run in
+  multithreaded mode</em>. Because the new call may arrive at the same daemon, it must create a new thread to handle
+  the new incoming call. When running in single threaded mode, Pyro will freeze because the calls are waiting on each
+  other to be processed.</p>
+
+  <p><strong>Please consider using the Pyro Event Service, instead of custom callback objects</strong>. It will handle
+  all those nasty things for you, at the cost of some control. But it's very easy to use.</p>
+
+  <p><strong>Special callback object <code>Pyro.core.CallbackObjBase</code>:</strong> Usually any exception
+      that occurs in the callback object is silently transported back to the server, where it is raised
+      again. For many callback objects, this is not exactly what you want, because usually the <em>client</em> is
+      interested in an error within a callback object, and the server often doesn't care. If you use
+      the special <code>Pyro.core.CallbackObjBase</code> as
+  a base class for your callback objects (instead of the regular <code>ObjBase</code>), any exception
+  that occurs in the callback object is not only sent to the server, but also raised again on the cient.
+  You can see this work in one of the &quot;callback&quot; examples.</p>
+
+  <p><strong>Oneway calls:</strong> These are remote method calls that do not expect any answer, so they return
+  immediately after sending the remote call to the remote object. The call does <em>not</em> wait for the remote method
+  to finish. At a lower level, it doesn't even wait for a protocol reply, so performance is much better too. On the
+  server side (the object that executes the oneway call), the call is executed in its own thread so that other calls
+  can be processed in the meantime, if the oneway method takes some time to complete. This only works if multithreading
+  is enabled. This property of oneway calls allows you, for instance, to start a computation and continue your own
+  business while the computation runs. Later on you use another remote call to retrieve the results of the computation
+  (or use a callback). This way, you don't have to worry about programming a multithreaded client, just use a oneway
+  call.</p>
+
+  <p><em>But!</em> There is <em>no way</em> to find out what the result of your request was - whether it succeeded or
+  failed. No result nor any exception is ever returned. You're still quite sure that the call is performed though,
+  because the request is sent using the regular PYRO protocol, but there is no guarantee (nor is there with regular
+  calls by the way).</p>
+
+  <p>Oneway calls are <em>very</em> nice to have in a callback scenario. The Event Service also makes heavy use of
+  them. Why? Your server is freed from the burden of handling exceptions that may occur in the remote method, and it
+  doesn't block on slow or buggy clients. It just sends out the method invocations and continues on happily while the
+  callback clients process the incoming method call.</p>
+
+  <p>You have to specify at runtime in your program which methods of what objects have this Oneway semantics. You do
+  this by calling a special method on the Pyro proxy object:</p>
+  <pre>
+obj._setOneway(methods)
+</pre>where obj is your proxy and methods is a list or tuple of <em>method names</em> that have to be called Oneway. It
+may also be a single method name. Currently there is no way to specify from within the remote object itself, or the
+creating process, that a method has to be called oneway. The calling party has to set this property. Ofcourse you could
+build some sort of inquiry method that has to be called first and that tells the caller what methods can have this
+property, and maybe this will become automatic in a future version, but it's not yet there.
+
+  <h3><a name="exc" id="exc"></a>Dealing with exceptions</h3>Pyro objects act just like regular Python objects. Your
+  method calls are performed as if you're calling a regular local object. If the object raises an exception, the
+  calling code will receive that exception and will act just as if the exception occurred in a local object.
+
+  <p>Assume the remote Pyro object raises a <code>ValueError</code> exception. Your calling code will receive this and
+  crash wit the same <code>ValueError</code> exception. However, the <em>stacktrace</em> in the traceback info is
+  <em>from your local code, not from the remote code</em>. If you're just catching and processing exceptions, and don't
+  want to deal with stacktrace/traceback info, there is no problem with this. But if you want to print the stacktrace,
+  it is meaningless! It is a stacktrace from within the bowels of the local Pyro code! It provides no clue what piece
+  of <em>remote code</em> caused the problem.</p>
+
+  <p>To help you with this, Pyro puts the <em>remote stacktrace</em> inside the exception that travels to your calling
+  code. It is a list of text lines and can be obtained from the special attribute that is defined in
+  <code>Pyro.constants.TRACEBACK_ATTRIBUTE</code>, but it's probably more convenient to use the utility function
+  <code>Pyro.util.getPyroTraceback</code>. You pass the exception object and the function returns a list of lines that
+  contain the remote traceback (if available) and the local traceback. 
+  Note that if you set <code>PYRO_DETAILED_TRACEBACK</code> to 1 on the server side, it will not
+  be a normal traceback but a much more elaborated one including local variable values etc.
+  An example:</p>
+  <pre>
+try:
+        print thing.method()            # thing is a Pyro proxy
+except Exception,x:
+        print ''.join(Pyro.util.getPyroTraceback(x))
+</pre>
+<p>
+  This function is safe to call on all exceptions, also normal (local) exceptions. See the &quot;simple&quot; and
+&quot;exceptions&quot; examples.</p>
+
+  <h3><a name="daemon" id="daemon"></a>Remotely accessing the Daemon</h3>Usually you won't care a bit, but the Pyro
+  Daemon that is running in each Pyro server program, is exposed by a Pyro object itself. That means that you can
+  access a limited set of functions of remote Daemons! Pyro itself uses this for the PYROLOC: direct lookup protocol
+  that bypasses the Name Server; it queries the remote Daemon directly. Because the Daemon is always there, it has a
+  special, fixed GUID: <code>Pyro.constants.INTERNAL_DAEMON_GUID</code>. (this is not a GUID in the true sense, because
+  it is not unique). Here's an example to query all registered objects on a remote Daemon at 192.168.1.50, running on
+  the default port:
+  <pre>
+import Pyro.core
+Pyro.core.initClient()
+d=Pyro.core.PyroURI(host='192.168.1.50',objectID=Pyro.constants.INTERNAL_DAEMON_GUID).getProxy()
+print d.getRegistered()
+</pre>The result is a dictionary that maps GUIDs to object names, like this: <code>{'c0a8013208585602469aec911dc92a20':
+':Pyro.NameServer', 'c0000000011000001000000010000001': '__PYRO_Internal_Daemon'}</code>.
+
+  <p>Currently there is only one other daemon method that is remotely accessible, <code>ResolvePYROLOC</code>.
+      You will probably never call this yourself, it is used for the PYROLOC: protocol. <strong>Note:</strong> If
+      the daemon is running in SSL mode you have to add an additional <code>prtcol=&quot;PYROSSL&quot;</code> argument
+      to the PyroURI constructor call above!</p>
+
+  <h3><a name="timeout" id="timeout"></a>Timeouts and cleaning up unused objects</h3>If network errors occur, you often
+  want to find out quickly. By default, Pyro may take a very long time to notice that a host is unreachable (it relies
+  on the operating system to notice this). That's why it is possible to specify a custom timeout period. It is disabled
+  by default because a default timeout period is very hard to decide on and the timeout logic also slightly decreases
+  performance. But if you need, you can specify a timeout period on data transmission (sends and receives).
+
+  <p>Because Pyro's connection protocol requires a handshake at connection time, the timeout also works for connecting
+  to a Pyro daemon. This is nice, because evil clients now cannot eat connections indefinately by just connecting and
+  never finishing the request. Once a connection has been established, it stays there.</p>
+
+  <p>How do you set the timeout?</p>
+  <pre>
+        proxy._setTimeout(20)           # set 20-sec. timeout on proxy object (client)
+        daemon.setTimeout(20)           # set 20-sec. timeout on daemon (server)
+</pre>Clear it again by passing <code>None</code>. If a timeout occurs, Pyro raises a <code>TimeoutError</code>
+exception, which is subclassed from <code>ConnectionClosedException</code>. The connection has already been dropped by
+Pyro. (why is it <code>_setTimeout</code> -- with an underscore -- for the proxy? To avoid possible name clash with
+your own method names)
+
+  <p><strong>Note about NS and ES:</strong> the Name Server and Event Server have a built-in fixed timeout of 20
+  seconds. The connection is killed if data transmission takes longer than that, to prevent evil clients of clogging up
+  the servers.</p>
+
+  <h4>Cleaning up unused objects: reaping transients and passivate proxies</h4>To save resources, Pyro facilitates in
+  cleaning up unused connections or even objects. Your <em>client</em> may decide to <strong>release the
+  connection</strong> if it doesn't need a proxy for some time. (remember that each proxy opens a network connection).
+  Call <code>proxy._release()</code> to release the connection. Pyro will automatically create the connection again as
+  soon as you start using the proxy again. An additional benefit is that the socket object associated with the proxy is
+  destroyed, so you are able to pickle the proxy object again.
+
+  <p>Things are a bit more complex on the server. Usually the Pyro objects you create there must stay
+      active because it is not known when a client comes by to use them. This is especially true for
+      objects that are registered in the Name Server, because that sort of tells the clients &quot;this object
+      is available there-and-there&quot;. But for
+  <em>transients</em>, things are different. Remember that transients are objects created on the server,
+  without a name, and usually a proxy is returned to the client to access these new objects. There's
+  no way to tell when the client no longer needs the object! If it 'forgets' to call some sort of &quot;release&quot;
+  method that destroys the object in the server, your server could overflow with all left-over unused
+  transient objects. This is why you can specify an
+  <strong>inactivity timeout for transients</strong>, by calling <code>daemon.setTransientsCleanupAge(timeout)</code>
+  on your daemon. The argument is in seconds.<br>
+  Pyro tracks the time an object has not been used, and destroys it when the timeout has expired. You may want to
+  override the <code>_gotReaped()</code> method in the <code>ObjBase</code> to act on the destroy event (for instance,
+  remove the object from a list).<br>
+  Please be aware that if Pyro runs in single-threaded mode, the reaping of expired objects is only done when a method
+  is invoked!<br>
+  Also, cleaning up objects on the server doesn't automatically release any network connections and threads
+  that might have been created for these objects. This is because these resources are not necessarily
+  associated with a unique object, so they have to remain active. See also the &quot;Bank2&quot; example,
+  it uses timeouts.</p>
+
+  <h3><a name="rules" id="rules"></a>Usage rules and guidelines</h3>
+
+  <h4>You should follow the guidelines below when using Pyro.</h4>
+
+  <ol>
+    <li>The remote class can't have a remote <code>__init__</code> method. You should use a regular initialization
+    method that you must call explicitly after binding to the remote object. The <code>__init__</code> method will only
+    be called on the server side when the object is created.</li>
+
+    <li>All objects that pass over the wire have to be pickleable. You cannot create a remote method like
+    <code>openFile(filename)</code> that opens a file on the server and returns the file object, because file objects
+    cannot be pickled. This also holds for sockets, and various other object types. As long as you don't access these
+    objects in your client, you're OK though (there's nothing wrong with a Pyro object that has various open files or
+    sockets as attributes -- if you don't access them from the client).</li>
+
+    <li>The remote class cannot support 'rich comparison', i.e. <code>object1==object2</code> for instance. This is
+    because the proxy class needs to hijack the rich comparison mechanism to be able to compare two proxy classes with
+    each other.</li>
+
+    <li>You have to choose explicitly for the special proxy that will allow direct attribute access, because it is
+    slower than the regular proxy. Direct attribute access will <em>not</em> work with the regular proxy.</li>
+
+    <li>You have to use the built-in proxy for the Name Server, provided in <code>Pyro.naming.NameServerProxy</code>.
+    When you use the Locator, you're safe.</li>
+
+    <li>All Python <code>.py</code> source files that contain the code of the objects that are used as
+        parameters in remote method calls, must be available on the client <em>and on the server</em>.
+        Otherwise the server cannot load the implementation code of an object that arrives in a remote
+        method call. This is no longer necessary if you enable the mobile code feature. See the &quot;agent2&quot;
+        example.</li>
+
+    <li>All Python <code>.py</code> source files that contain the code of the objects that are used as attributes of
+    Pyro objects on the server, must be available on the client <em>also</em>. Otherwise the client cannot recreate the
+    server object's attributes and will crash if you access these attributes. This cannot be fixed with enabling mobile
+    code yet.</li>
+
+    <li>The class that is actually instantiated in the server should inherit from <code>Pyro.core.ObjBase</code>. You
+    could define a new (probably empty) class in the server that inherits both from <code>Pyro.core.ObjBase</code> and
+    the class that is made remotely available.</li>
+
+    <li>You could also use the Delegation pattern instead of subclassing from <code>Pyro.core.ObjBase</code>. This
+    works as follows: create an object of your remote class, create a <code>Pyro.core.ObjBase</code> object, and tell
+    the latter to use the former as delegate:
+      <pre>
+...
+impl = MyRemoteClass()
+obj = Pyro.core.ObjBase()
+obj.delegateTo(impl)
+...
+</pre>and you then connect <code>obj</code> to the Daemon.
+    </li>
+
+    <li>You <strong>cannot</strong> share proxy objects between different threads. Look elsewhere in this chapter for
+    	extensive documentation on this difficult subject.</li>
+
+    <li>It is preferred to call <code>daemon.shutdown()</code> when your program exits. This will cleanly stop all
+    threads that might still be running.</li>
+
+    <li>Note that, because Python doesn't do this automatically, you <em>have</em> to call the <code>__init__</code>
+    from the base class in the <code>__init__</code> method -if you have one- of your remote class. You cannot omit
+    this, your Pyro object will not work without the initialization:
+      <pre>
+def __init__(self):
+    Pyro.core.ObjBase.__init__(self)
+    ...
+</pre>
+    </li>
+
+    <li>If you create new Pyro objects on the server, and you want them to be accessed from the client, or vice versa
+    (such as callback objects), you have to consider some things carefully. Make sure you:
+
+      <ul>
+        <li>derive the class from <code>Pyro.core.ObjBase</code>, or use the delegation approach, and call
+        <code>Pyro.core.ObjBase.__init__(self)</code> from your own <code>__init__</code></li>
+
+        <li>connect the new object to the Pyro Daemon (with or without a name). (This is needed to register the object
+        as a Pyro object, and to set the daemon in the object for the next step.) It can be easily done from within the
+        Pyro object that created the new object:
+          <pre>
+   URI = self.getDaemon().connect(object)        # no name, not in NS
+   URI = self.getDaemon().connect(object,'name') # registered in NS with 'name'
+</pre>
+        </li>
+
+        <li>return a proxy for the object, not the object itself. Instead of the normal <code>return object</code> that
+        you would otherwise use, you do:
+          <pre>
+   return object.getProxy()      # regular dynamic proxy
+   return object.getAttrProxy()  # dynamic proxy with attribute support
+</pre>
+        </li>
+
+        <li>disconnect the object form the Pyro Daemon if you're done with it (don't just del it)
+          <pre>
+   self.getDaemon().disconnect(object)
+   del object
+</pre>
+        </li>
+      </ul>
+    </li>
+
+    <li>Funny and unexpected things happen if you try to use a Pyro proxy object in various statements such as
+    <code>while obj:</code>. Like the limitation with direct member access, this is also caused by the way the proxy
+    object is currently implemented. It intercepts each and every method call. And testing for zero-ness or
+    nonzero-ness or coercion are also method calls! (<code>__nonzero__, __coerce__</code> etc.)</li>
+
+    <li>Consider subclassing callback objects from <code>Pyro.core.CallbackObjBase</code> instead of
+        the regular
+    <code>ObjBase</code>. (see above at &quot;callbacks&quot;)</li>
+
+    <li>If you want to use augmented assigment operators (such as +=, *=) and other special things on
+        your Pyro object, please read the chapter of the Pytho/Language Reference, &quot;<a href=
+    "http://www.python.org/doc/current/ref/numeric-types.html">Emulating numeric types</a>&quot;. Also
+        when you're using other special class methods such as <code>__nonzero__</code>. For example,
+        to make <code>obj+=50</code> work,
+        you need to implement the <code>__iadd__</code> method in your Pyro object and let it return
+        the object itself (that is, a proxy for the object!) because the method returns the in-place
+        modified object!
+        <pre>
+def __iadd__(self,value):
+    self.value+=value
+    return self.getAttrProxy()
+</pre>
+    </li>
+
+    <li>You have to make sure that you keep a reference to your Daemon at all time, because if the daemon is no longer
+    referenced, it might be garbage collected (destroyed) by Python. Even if you connected Pyro objects to the daemon.
+    This is recommended anyway because you can then cleanly terminate your Pyro application by calling
+    <code>daemon.shutdown()</code> when it exits. Usually this is not a problem because your program creates a deamon
+    and calls its <code>requestLoop</code>. But a situation might arise where you don't keep a reference to the daemon
+    object, and then things break.</li>
+
+    <li>Pyro proxy objects (including the <code>NameServerProxy</code>) can be pickled, and therefore you can pass them
+    around within your Pyro system. Thread ownership is taken by the thread that unpickled the proxy.</li>
+
+    <li>If your Pyro object calls other Pyro objects, it is strongly recommended to run the Daemon in
+        multithreaded mode. Failing to do so will probably lock up Pyro, for instance when a &quot;looping&quot;
+        request arrives.</li>
+
+    <li>Consider disconnecting objects from the daemon if you don't need them anymore;
+    <code>daemon.disconnect(object)</code></li>
+
+    <li>Be careful when using large data structures. For instance, when you are getting an element from a dictionary
+    using attribute access on the remote object (like this: <code>value=remoteObject.somedict['somekey']</code>) Pyro
+    will transfer <em>the full dictionary</em> to the caller and do the key lookup only after that. If it's a big data
+    structure, you have a big performance hit. Consider writing getter and setter methods on the remote object
+    instead.</li>
+  </ol>
+  <div class="nav">
+  <hr>
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="6-eventserver.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> |
+      <a href="8-example.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table></div>
+</body>
+</html>

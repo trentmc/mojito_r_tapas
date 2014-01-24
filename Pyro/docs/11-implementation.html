@@ -1,0 +1,367 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<!-- $Id: 11-implementation.html,v 2.11.2.1 2007/04/30 14:25:56 irmen Exp $ -->
+<head>
+  <title>PYRO - Implementation</title>
+  <link rel="stylesheet" type="text/css" href="pyromanual_print.css" media="print">
+  <link rel="stylesheet" type="text/css" href="pyromanual.css" media="screen">
+</head>
+
+<body>
+  <div class="nav">
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="10-errors.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "12-changes.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table>
+<hr></div>
+
+  <h2><u>11. Pyro's Implementation</u></h2>The purpose of this chapter is to provide some insight in the Pyro's
+  implementation. However please keep in mind that it is quite tedious for me to update this chapter with each Pyro
+  release, so I want to stress the fact that the source code is probably the best place to look if you want to find out
+  specific details about Pyro's implementation.
+
+  <p>Nevertheless this chapter is a nice starting point to explore the different parts that make up Pyro.</p>
+
+  <ul>
+    <li><a href="#pyro">The Pyro Principle</a> - The basic techniques with which Pyro works</li>
+
+    <li><a href="#scripts"><code>bin/*</code></a> - Command-line tools</li>
+
+    <li><a href="#init"><code>__init__.py</code></a> - Pyro package initialization</li>
+
+    <li><a href="#config"><code>configuration.py</code></a> - Configuration code</li>
+
+    <li><a href="#const"><code>constants.py</code></a> - Global constants used troughout Pyro</li>
+
+    <li><a href="#core"><code>core.py</code></a> - Core code</li>
+
+    <li><a href="#naming"><code>naming.py</code></a> - Name Server</li>
+
+    <li><a href="#protocol"><code>protocol.py</code></a> - Protocol adapters</li>
+
+    <li><a href="#util"><code>util.py</code></a> - Utility code</li>
+
+    <li><a href="#errors"><code>errors.py</code></a> - Exception definitions</li>
+
+    <li><a href="#event"><code>Pyro.EventService</code></a> - Event Server package</li>
+
+    <li><a href="#ext"><code>Pyro.ext</code></a> - Extensions package</li>
+  </ul>
+
+  <h3><a name="pyro" id="pyro"></a>The Pyro Principle</h3><em>How does Pyro work???</em> Pyro uses two main principles
+  to do what it does: <em>method call interception</em> (actually, attribute access interception) and
+  <em>marshalling</em>.
+
+  <p>Your code doesn't call a Pyro object directly. It calls a method on a proxy that acts just like the Pyro object it
+  represents. The proxy intercepts the method call by using a special implementation of <code>__getattr__</code>, that
+  passes the call to <code>_invokePYRO</code>. In turn, that method forwards the call to the protocol adapter, that
+  creates a message containing all the details of the call (using <code>pickle</code> to marshall all Python objects).
+  The message is passed via the network to the Pyro daemon on the other side.</p>
+
+  <p>The daemon receives the message and unmarshalls the request. It now knows the objectID of the required Pyro
+  objects, the desired member function to call, and its arguments. It looks up the Pyro Object in its table and calls
+  the <code>Pyro_dyncall</code> method. This method is in <code>ObjBase</code> which is the base class of all Pyro
+  objects. This method uses the appropriate <code>apply</code> call on itself to call the actual method. The result of
+  the method is handed back to the Pyro daemon, that marshalls it, and passes it back over the network to the calling
+  protocol adapter. The adapter on the client side unmarshalls the result data, hands it back to the proxy that called
+  it, and then the <code>_invokePYRO</code> method of the proxy returns the result data as if it was obtained using a
+  regular method call on a local object!</p>
+
+  <p>This was Pyro in a nutshell. There are many more things to consider, such as transporting modules (mobile objects
+  or even mobile agents) and oneway calls, but you have to read the source anyway to find all the gory details.</p>
+
+  <h3><a name="scripts" id="scripts"></a>The command-line tools (bin/*)</h3>The command-line tools are all in fact very
+  small Python scripts. They contain a few Python statements that start the actual tools, which are part of the Pyro
+  package:
+
+  <table>
+    <tr>
+      <th>Tool</th>
+
+      <th>Implemented in</th>
+
+      <th>Notes</th>
+    </tr>
+
+    <tr>
+      <td>pyro-es</td>
+
+      <td>Pyro.EventService.Server</td>
+
+      <td>start Event Server</td>
+    </tr>
+
+    <tr>
+      <td>pyro-nsc</td>
+
+      <td>Pyro.nsc</td>
+
+      <td>control Name Server</td>
+    </tr>
+
+    <tr>
+      <td>pyro-xnsc</td>
+
+      <td>Pyro.xnsc</td>
+
+      <td>Tkinter-GUI version of nsc</td>
+    </tr>
+
+    <tr>
+      <td>pyro-wxnsc</td>
+
+      <td>Pyro.wxnsc</td>
+
+      <td>WxPython/WxWindows version of nsc, with nice tree view of namespace</td>
+    </tr>
+
+    <tr>
+      <td>pyro-genguid</td>
+
+      <td>Pyro.util</td>
+
+      <td>create a GUID, entrypoint is <code>genguid_scripthelper()</code></td>
+    </tr>
+
+    <tr>
+      <td>pyro-ns / pyro-rns</td>
+
+      <td>Pyro.naming</td>
+
+      <td>start Name Server, entrypoint is <code>main()</code></td>
+    </tr>
+
+    <tr>
+      <td>pyro-nsd / pyro-esd</td>
+
+      <td>Pyro.ext.daemonizer</td>
+
+      <td>Unix initd daemon scripts for name server and event server</td>
+    </tr>
+
+    <tr>
+      <td>pyro-nssvc / pyro-essvc</td>
+
+      <td>Pyro.ext.NS_NtService and ES_NTService</td>
+
+      <td>Windows NT Service control scripts for NS and ES</td>
+    </tr>
+  </table>
+
+  <h3><a name="init" id="init"></a>Pyro package initializer (Pyro/__init__.py)</h3>Pyro is a Python package and as such
+  is contained in the 'Pyro' directory. This directory contains the different module files that make up the Pyro
+  system. One of them is the initialization file, <code>__init__.py</code>. It loads the configuration settings for
+  Pyro (<code>Pyro.config.</code>* items). This way, whenever a module from the Pyro package is imported, it can use
+  the config items right away.
+
+  <p>Within the core package is also another package; <code>Pyro.EventService</code>. The event service is implemented
+  here: the Event Server itself and the base classes for event publishers and listeners.</p>
+
+  <h3><a name="config" id="config"></a>Configuration (Pyro/configuration.py)</h3>This module contains the logic that
+  deals with Pyro's configuration. There is a <code>Config</code> class and a <code>ConfigReader</code> class. The
+  <code>Config</code> class is the container for all configuration items. The instance is available as
+  <code>Pyro.config</code> (created in the package initializer, see above). The configuration items are all attributes
+  of this object. <code>Config</code> uses the <code>ConfigReader</code> to read Pyro's configuration file. It deals
+  with defaults and environment settings too.
+
+  <h3><a name="const" id="const"></a>Constants (Pyro/constants.py)</h3>This module contains all globally used
+  constants. By placing them in a distinct module that doesn't import any other modules (apart from util), we can also
+  prevent import cycles between other Pyro modules. Things that are defined here are for example the Pyro version
+  string, and the names for the Name Server and Event Server.
+
+  <h3><a name="core" id="core"></a>Core library (Pyro/core.py)</h3>This module contains all core logic of Pyro that is
+  not tied to the network protocol that is used. This means that you will not find any TCP/IP socket specific code in
+  the core module; the <a href="#protocol"><code>protocol</code></a> module contains this. What the core module does
+  contain is all stuff that realize the core functions of Pyro:
+
+  <dl>
+    <dt><code>ObjBase</code></dt>
+
+    <dd>Server-side object implementation base class or master class with the actual object as delegate. It supplies
+    the methods for remote method invocation (<code>Pyro_dyncall</code>) and remote attribute access
+    (<code>remote_getattr</code> etc.)</dd>
+
+    <dt><code>PyroURI</code></dt>
+
+    <dd>Pyro Universal Resource Identifier. This class represents a Pyro URI (which consists of four parts: a protocol
+    identifier, an IP address, a portnumber, and an object ID). <code>PyroURI</code> can be converted to and from a -
+    human readable - string.</dd>
+
+    <dt><code>DynamicProxy</code> and <code>DynamicProxyWithAttrs</code></dt>
+
+    <dd>These two classes are the dynamic Pyro proxies. They can be used by clients to invoke objects
+        for which they have no precompiled proxy. The &quot;WithAttrs&quot; proxy is needed if you want to
+        do direct attribute access on remote Pyro objects. The proxies have a special <code>_invokePYRO</code> method
+        that intercepts method calls to pass them via the protocol adapter to the remote Pyro object.
+        Special care is taken to make proxy objects suitable for pickling so they can be transported
+        trough the Pyro protocol across the network.</dd>
+
+    <dt><code>getProxyForURI</code> and <code>getAttrProxyForURI</code></dt>
+
+    <dd>Helper functions to create proxies directly from a given Pyro URI (object).</dd>
+
+    <dt><code>Daemon</code></dt>
+
+    <dd>The server-side Pyro daemon. Accepts and dispatches incoming Pyro method calls. It is derived from the low
+    level <code>TCPServer</code> and contains the server end of a protocol adapter. The daemon passes incoming method
+    calls (via its <code>handleRequest</code> method) to the protocol adapter that sorts out what to do exactly. The
+    <code>connect</code> and <code>disconnect</code> methods are used to keep track of server side Pyro objects. The
+    Daemon's <code>handleError</code> is used in case of a Pyro error, it processes the error and cleans things
+    up.</dd>
+
+    <dt>Pyro client and Pyro server initialization code</dt>
+
+    <dd>The <code>initClient</code> and <code>initServer</code> functions perform necessary initialization. For
+    instance, the server init code first checks the availability of the <code>PYRO_STORAGE</code> directory.</dd>
+  </dl>
+
+  <h3><a name="naming" id="naming"></a>Name Server (Pyro/naming.py)</h3>This module contains all logic that deals with
+  object naming and locations. Pyro's Name Server is implemented here as well as various other things.
+
+  <dl>
+    <dt><code>NameServerLocator</code></dt>
+
+    <dd>Used to locate the Name Server by using various lookup methods (broadcast, direct lookup). Usually you call the
+    <code>getNS</code> method and you get a Pyro Proxy for the Name Server back.</dd>
+
+    <dt><code>NameServerProxy</code></dt>
+
+    <dd>A built-in proxy for the Name Server that takes care of the naming rules (global names, default groups). You
+    get this back from the <code>NameServerLocator.getNS</code>.</dd>
+
+    <dt><code>NameServer</code> and <code>PersistentNameServer</code></dt>
+
+    <dd>The actual pyro object that is the Name Server. It is created by some utility code that also connects it to a
+    daemon. This code is called by the <code>ns</code> script that starts the Name Server.</dd>
+
+    <dt>Various classes for hierarchical naming support, they implement a tree structure.</dt>
+
+    <dd>We have a (name,value) tuple <code>NameValue</code> and a <code>NamedTree</code> recursive data structure.</dd>
+
+    <dt><code>BroadcastServer</code></dt>
+
+    <dd>The helper server that listens to UDP broadcast events from the locator, and replies with the URI of the Name
+    Server object. This server's socket is joined with the regular Pyro Daemon that listens for incoming Pyro calls for
+    the NS object.</dd>
+  </dl>
+
+  <h3><a name="protocol" id="protocol"></a>Protocol Adapters (Pyro/protocol.py)</h3>The idea behind this module is to
+  make it fairly straightforward to switch the underlying protocol that Pyro uses. Currently only one implementation is
+  available: the native PYRO protocol that sits on top of TCP/IP. This module contains all TCP/IP socket related code.
+
+  <h3><a name="util" id="util"></a>Utilities (Pyro/util.py)</h3>This module defines various utility functions and
+  classes. The most important ones are:
+
+  <dl>
+    <dt><code>LoggerBase</code></dt>
+
+    <dd>This is the abstract base class of the various logging classes, see the next two items. Don't use this
+    directly.</dd>
+
+    <dt><code>SystemLogger</code></dt>
+
+    <dd>An object of this class is directly available as <code>Pyro.util.Log</code> and this is Pyro's system logger
+    that writes to Pyro's system logfile.</dd>
+
+    <dt><code>UserLogger</code></dt>
+
+    <dd>An object of this class can be constructed to create a user logger that writes to the user logfile.</dd>
+
+    <dt><code>ArgParser</code></dt>
+
+    <dd>A simple command line argument parser like the <code>getopt</code> function in ANSI C. Pyro's command line
+    tools use this. It can parse command line options according to an option specification string. The
+    <code>getOpt</code> member is used to read the results.</dd>
+
+    <dt><code>getGUID</code></dt>
+
+    <dd>Generates a new GUID. This is essentially a big number that is unique in time and in space. Unique in time
+    means that every moment you generate a new GUID it is different from the ones you generated before. Pyro does this
+    by using a time stamp as part of the GUID. Unique in space means that when you generate a GUID on a different
+    machine, it will be different from the GUID you generated elsewhere (even when you generate them exactly the same
+    moment). Pyro does this by using the network address of your computer as part of the GUID, and the Python process
+    id. The latter is necessary because multiple Python processes may be running on the same IP address. The 128-bit
+    GUID is returned as a hexlified string of 32 characters.</dd>
+
+    <dt><code>genguid_scripthelper</code></dt>
+
+    <dd>This helper function is used by the <code>genguid</code> command line utility, which prints a new GUID.</dd>
+
+    <dt><code>getPyroTraceback</code></dt>
+
+    <dd>Gets the remote traceback from the exception that is caught on the client, augments this with the local
+    traceback, and returns a list of traceback steps. Use this to find out which part of the remote code caused the
+    exception.</dd>
+  </dl>
+
+  <h3><a name="errors" id="errors"></a>Exception definitions (Pyro/errors.py)</h3>This module defines
+  <code>Pyro.PyroError</code> and its derived exceptions. <code>PyroError</code> is the Pyro exception type that is
+  used for problems <em>within</em> Pyro. User code should <em>not</em> use it! Also, this module defines the
+  <code>PyroExceptionCapsule</code> class, which is used to represent any Python exception that has to be transported
+  across the network, and raised on the other side (by invoking <code>raiseEx</code> on this object).
+
+  <h3><a name="event" id="event"></a>Event Server package (Pyro/EventService)</h3>This package contains the Event
+  Server modules:
+
+  <dl>
+    <dt><code>Pyro/EventService/Clients.py</code></dt>
+
+    <dd>Here are the <code>Subscriber</code> and <code>Publisher</code> base classes defined that you can use to easily
+    build publisher or listener clients for the ES.</dd>
+
+    <dt><code>Pyro/EventService/Server.py</code></dt>
+
+    <dd>Contains the actual <code>EventService</code> Pyro object that is started by some utility code. This module is
+    called by the <code>es</code> script that you can use to start the Event Server.</dd>
+  </dl>
+
+  <h3><a name="ext" id="ext"></a>Extensions package (Pyro/ext)</h3>This package contains optional modules that provide
+  certain extensions to the core Pyro library. It contains:
+
+  <dl>
+    <dt><code>Pyro/ext/remote.py</code></dt>
+
+    <dd>The easy-remoting module that is shown in the &quot;quickstart&quot; example.</dd>
+
+    <dt><code>Pyro/ext/remote_nons.py</code></dt>
+
+    <dd>The easy-remoting module that doesn't use the Name Server, it is shown in the &quot;quickstart-noNS&quot;
+        example.</dd>
+
+    <dt><code>Pyro/ext/daemonizer.py</code></dt>
+
+    <dd>Utility classes to &quot;daemonize&quot; a Pyro server (Unix only). Used by the nsd and esd initd
+        daemon scripts for instance.</dd>
+
+    <dt><code>Pyro/ext/BasicNTService.py</code></dt>
+
+    <dd>Utility classes for creating Windows NT Services (Windows NT only).</dd>
+
+    <dt><code>Pyro/ext/NS_NtService.py</code></dt>
+
+    <dd>The Name Server as Windows NT Service.</dd>
+
+    <dt><code>Pyro/ext/ES_NtService.py</code></dt>
+
+    <dd>The Event Server as Windows NT Service.</dd>
+
+    <dt><code>Pyro/ext/ServiceTest.py</code></dt>
+
+    <dd>Test sets for the Windows NT Services.</dd>
+  </dl>
+  <div class="nav">
+  <hr>
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="10-errors.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "12-changes.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table></div>
+</body>
+</html>

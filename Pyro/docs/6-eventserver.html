@@ -1,0 +1,401 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+  <!-- $Id: 6-eventserver.html,v 2.17.2.2 2008/05/24 13:47:36 irmen Exp $ -->
+  <title>PYRO - Event Server</title>
+  <link rel="stylesheet" type="text/css" href="pyromanual_print.css" media="print">
+  <link rel="stylesheet" type="text/css" href="pyromanual.css" media="screen">
+</head>
+
+<body>
+  <div class="nav">
+  <table width="100%">
+    <tbody>
+      <tr>
+        <td align="left"><a href="5-nameserver.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> |
+        <a href="7-features.html">next&gt;</a></td>
+
+        <td align="right">Pyro Manual</td>
+      </tr>
+    </tbody>
+  </table>
+<hr></div>
+
+  <h2><u>6. Pyro Event Server</u></h2>
+
+  <ul>
+    <li><a href="#intro">Introduction</a></li>
+
+    <li><a href="#starting">Starting the Event Server</a></li>
+
+    <li><a href="#publish">Using the Event Server (publish)</a></li>
+
+    <li><a href="#subscribe">Using the Event Server (subscribe)</a></li>
+
+    <li><a href="#thread">Threads, Subscribers and Queues</a></li>
+
+    <li><a href="#examples">Examples</a></li>
+  </ul>
+
+  <h3><a name="event" id="event"></a><a name="intro" id="intro"></a>Introduction</h3>
+
+  <p>In various situations it is needed that the servers and the clients are decoupled. In abstract terms this means
+  that information producers do not know nor care about the parties that are interested in the information, and the
+  information consumers do not know nor care about the source or sources of the information. All they know is that they
+  produce or consume information on a certain subject.<br></p>
+
+  <p>Here does the Event Server fit in nicely. It is a third party that controls the flow of information
+      about certain subjects (&quot;events&quot;). A <em>publisher</em> uses the Event Server to publish
+      a message on a specific subject. A
+  <em>subscriber</em> uses the Event Server to subscribe itself to specific subjects, or to a pattern
+  that matches certain subjects. As soon as new information on a subject is produced (an &quot;event&quot; occurs)
+  all subscribers for this subject receive the information. Nobody knows (and cares) about anybody else.<br>
+  </p>
+
+  <p>It is important to rembember that all events processed by the ES are transient, which means they are not stored.
+  If there is no listener, all events disappear in the void. The store-and-forward programming model is part of a
+  messaging service, which is not what the ES is meant to do. It is also important to know that all subscription data
+  is transient. Once the ES is stopped, all subscriptions are lost. The clients that are subscribed are not notified of
+  this! If no care is taken, they keep on waiting forever for events to occur, because the ES doesn't know about them
+  anymore!<br></p>
+
+  <p>Usually your subscribers will receive the events in the order they are published. However, this is <em>not
+  guaranteed</em>. If you rely on the exact order of receiving events, you must add some logic to check this (possibly
+  by examining the event's timestamps). The chance of events not arriving in the order they were published is very,
+  very small in a high-performance LAN. Only on very high server load, high network traffic, or a high-latency (WAN?)
+  connection it is likely to occur.</p>
+
+  <p>Another thing to pay attention to is that the ES does not guarantee delivery of events. As mentioned above, the ES
+  does not have a store-and-forward mechanism, but even if everything is up and running, the ES does <em>not</em>
+  enhance Pyro's way of transporting messages. This means that it's still possible (perhaps due to a network error)
+  that an event gets lost. For reliable, guaranteed, asynchronous message delivery you'll have to look somewhere else,
+  sorry ;-)</p>
+
+  <p>The ES is a multithreaded server and will not work if your Python installation doesn't have thread support.
+  Publications are dispatched to the subscribers in different threads, so they don't block eachother. Please note that
+  events may arrive at your listener in multithreaded fashion! Pyro itself starts another thread in your listener to
+  handle the new event, possibly while the previous one is still being handled. <em>The<code>event</code> method may be
+  called concurrently from several threads.</em> If you can't handle this, you have to use some form of thread locking
+  in your client! (see the <code>threading</code> module on <code>Semaphore</code>), or
+  <code>Pyro.util.getLockObject</code>. Keep in mind that one of the things that requires a thread lock is <em>calling
+  Pyro methods on a Pyro object</em>, because the proxy cannot be shared among different threads!<br>
+  <br>
+  <span style="font-weight: bold;">To summarize:<br></span></p>
+
+  <ul>
+    <li>decoupled event listeners and event producers; many-to-many<br></li>
+
+    <li>topic based communication</li>
+
+    <li>subscription to unique topics or topic patterns</li>
+
+    <li>events are transient and will disappear if nobody is listening</li>
+
+    <li>not a means of guaranteed or asynchronous messaging</li>
+
+    <li>multithreading mode required<br></li>
+  </ul>
+
+  <h3><a name="starting" id="starting"></a>Starting the Event Server</h3>Start the ES using the <code>pyro-es</code> command
+  from the <code>bin</code> directory (use <code>pyro-es.cmd</code> on windows). You can specify the following
+  arguments:<br><br>
+  pyro-es [-h] [-n hostname] [-p port] [-i identification]
+
+  <dl>
+    <dt>-h</dt>
+
+    <dd>Print help.</dd>
+
+    <dt>-n hostname</dt>
+
+    <dd>Change the hostname/ip address the server binds on. Useful with multiple network adapters.</dd>
+
+    <dt>-p port</dt>
+
+    <dd>Change the port number the server uses. (Omit to use Pyro defaults, 0 to let the operating system choose a random port).</dd>
+
+    <dt>-i identification</dt>
+
+    <dd>Specify the authentication passphrase that will be required to connect to this server. If it contains spaces,
+    use quotes around the string. The same identification is also used to connect to other Pyro servers such as the
+    Name Server. (this is required ofcourse when the Name Server has been started with the -i option).</dd>
+
+    <dt><br>
+    There is also: <code>pyro-essvc</code> &nbsp;&nbsp;(Windows-only Event Server 'NT-service' control scripts)</dt>
+
+    <dd>- Arguments: [options] install|update|remove|start [...]|stop|restart [...]<br>
+    - On windows NT (2000/XP) systems, it's possible to register and start the Event server as a NT-service. You'll
+    have to use the <code>essvc.cmd</code> script to register it as a service. Make sure you have Pyro properly
+    installed in your Python's site-packages. Or make sure to register the service using an account with the correct
+    PYTHONPATH setting, so that Pyro can be located. The ES service logs to <code>C:\Pyro_ES_svc.log</code> where C: is
+    your system drive.<br>
+    You can configure command line arguments for this service in the Registry. The key is:
+    <code>HKLM\System\CurrentControlSet\Services\PyroES</code>, and the value under that key is:
+    <code>PyroServiceArguments</code> (REG_SZ, it will be asked and created for you when doing a <code>essvc.cmd
+    install</code> from a command prompt).<br>
+    <em>Running the ES as a windows NT service it not well supported.</em></dd>
+  </dl>
+
+  <p><strong>Like the Name Server, if you want to start the Event Server from within your own program</strong>,
+      you can ofcourse start it by executing the start script mentioned above. You could also use the
+  <code>EventServiceStarter</code> class from the <code>Pyro.EventService.Server</code> module to start
+  it directly (this is what the script also does). Be sure to start it in a separate process or thread
+  because it will run in its own endless loop. Have a look at the &quot;AllInOne&quot; example to see how
+  you can start the Event Server using the
+  <code>EventServiceStarter</code> class.<br>
+  You probably have to wait until the ES has been fully started, call the <code>waitUntilStarted()</code> method on the
+  starter object. It returns true if the ES has been started, false if it is not yet ready. You can provide a timeout
+  argument (in seconds).</p>
+
+  <p>To start the ES you will first have to start the Name Server because the ES needs that to register itself. After
+  starting the ES you will then see something like this:<br></p>
+  <pre style="margin-left: 40px;">
+*** Pyro Event Server ***<
+Pyro Server Initialized. Using Pyro V3.2
+URI= PYRO://192.168.1.40:7766/c0a8012804bc0c96774244d7d79d5db3
+Event Server started.
+</pre>
+
+  <h4>Configuration options<br></h4>There are two config options specifically for the ES:
+  <code>PYRO_ES_QUEUESIZE</code> and <code>PYRO_ES_BLOCKQUEUE</code>. Read about them in the <a href=
+  "3-install.html">Installation and Configuration</a> chapter. By default, the ES will allocate moderately sized queues
+  for subscribers, and publishers will block if such a queue becomes full (so no events get lost). You might want to
+  change this behavior. Every subscriber has its own queue. So if the queue of a slow subscriber fills up, other
+  subscribers are still serviced nicely. By setting <code>PYRO_ES_BLOCKQUEUE</code> to <code>0</code>, new messages for
+  full queues are lost. This may be a way to allow slow subscribers to catch up, because new messages are put in the
+  queue when there is room again. Note that only messages to the slow or frozen subscribers are lost, normal running subscribers
+still receive these messages.</p>
+
+  <h3><a name="publish" id="publish"></a>Using the Event Server (publish)<br></h3>
+  The ES is just a regular Pyro object,
+  with a few helper classes. Its name (to look it up in the Name Server) is available in
+  <code>Pyro.constants.EVENTSERVER_NAME</code>. All subjects are case insensitive, so if you publish
+  something on the &quot;stockquotes&quot; channel it is the same as if you published it on the &quot;STOCKQuotes&quot; channel.<br>
+
+  <p>To publish an event on a certain topic, you need to have a Pyro proxy object for the ES, and then call the
+  <code>publish</code> method:<code>publish(subjects, message)</code> where <code>subjects</code> is a subject name or
+  a sequence of one or more subject names (strings), and <code>message</code> is the actual message. The message can be
+  any Python object (as long as it can be pickled):<br></p>
+  <pre style="margin-left: 40px;">
+import Pyro.core
+import Pyro.constants
+Pyro.core.initClient()
+es = Pyro.core.getProxyForURI(&quot;PYRONAME://&quot;+Pyro.constants.EVENTSERVER_NAME)
+es.publish(&quot;StockQuotes&quot;,( &quot;SUN&quot;, 22.44 ) )
+</pre>
+
+  <p>If you think this is too much work, or if you want to abstract from the Pyro details, you can use the
+  <code>Publisher</code> base class that is provided in <code>Pyro.EventService.Clients.</code> Subclass your event
+  publishers from this class. The init takes care of locating the ES, and you can just call the <code>publish(subjects,
+  message)</code> method of the base class. No ES proxy code needed:</p>
+  <pre style="margin-left: 40px;">
+import Pyro.EventService.Clients
+
+class StockPublisher(Pyro.EventService.Clients.Publisher):
+    def __init__(self):
+        Pyro.EventService.Clients.Publisher.__init__(self)
+    def publishQuote(self, symbol, quote):
+        self.publish(&quot;StockQuotes&quot;, ( symbol, quote) )
+
+sp = StockPublisher()
+sp.publishQuote(&quot;SUN&quot;, 22.44)
+</pre>
+
+  <h4>Authentication passphrase</h4>The <code>__init__</code> of both the Publisher and the Subscriber takes an
+  optional <code>ident</code> argument. Use this to specify the authentication passphrase that will be used to connect
+  to the ES (and also to connect to the Name Server).
+
+  <h3><a name="subscribe" id="subscribe"></a>Using the Event Server (subscribe)</h3>
+  As pointed out above, the ES is
+  just a regular Pyro object, with a few helper classes. Its name (to look it up in the Name Server)
+  is available in
+  <code>Pyro.constants.EVENTSERVER_NAME</code>. All subjects are case insensitive, so if you publish
+  something on the &quot;stockquotes&quot; channel it is the same as if you published it on the &quot;STOCKQuotes&quot; channel.<br>
+
+  <p>Event subscribers are a little more involved that event publishers. This is becaue they are full-blown
+      Pyro server objects that receive calls from the ES when an event is published on one of the topics
+      you've subscribed to! Therefore, your clients (subscribers) need to call the Pyro daemon's <code>handleRequests</code> or
+  <code>requestLoop</code> (just like a Pyro server). They also have to call <code>Pyro.core.initServer()</code>because
+  they also act as a Pyro server. Furthermore, they usually have to run as a multithreaded server, because
+  the ES may call it as soon as a new event arrives and you are not done processing the previous event.
+  Single-threaded servers will build up a backlog of undelivered events if this happens. You still get
+  all events (with the original timestamp - so you could skip events that &quot;have expired&quot; to catch
+  up). You can change this behavior by changing the before mentioned config items.</p>
+
+  <h4>Subscribing to receive information</h4>The Event Server has a few important methods that you'll be using to
+  subscribe:<br>
+
+  <table>
+    <tbody>
+      <tr>
+        <td><code>subscribe(subjects, subscriber)</code></td>
+
+        <td>Subscribe to events. <code>subjects</code> is a subject name or a sequence of one or more subject names
+        (strings), and <code>subscriber</code> is <em>a proxy</em> for your subscriber object</td>
+      </tr>
+
+      <tr>
+        <td><code>subscribeMatch(subjectPatterns, subscriber)</code></td>
+
+        <td>Subscribe to events based on patterns. <code>subjectPatterns</code> is a subject <span style=
+        "font-style: italic;">pattern</span> or a sequence of one or more subject patterns (strings), and
+        <code>subscriber</code> is <em>a proxy</em> for your subscriber object</td>
+      </tr>
+
+      <tr>
+        <td><code>unsubscribe(subjects, subscriber)</code></td>
+
+        <td>Unsubscribe from subjects. <code>subjects</code> is a subject or subject <span style=
+        "font-style: italic;">pattern</span> or a sequence thereof, and <code>subscriber</code> is <em>a proxy</em> for
+        your subscriber object</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>But first, create a subscriber object, which must be a Pyro object (or use delegation). The subscriber object
+  should have an <code>event(self, event)</code> method. This method is called by the ES if a new event arrives on a
+  channel you subscribed to. <code>event</code> is a <code>Pyro.EventService.Event</code> object, which has the
+  following attributes:</p>
+
+  <table>
+    <tbody>
+      <tr>
+        <td><code>msg</code></td>
+
+        <td>the actual message that was published. Can be any Python object.</td>
+      </tr>
+
+      <tr>
+        <td><code>subject</code></td>
+
+        <td>the subject (string) on which the message was published. (topic name)<br></td>
+      </tr>
+
+      <tr>
+        <td><code>time</code></td>
+
+        <td>the event's timestamp (from the server - synchronised for all subscribers). A float, taken from
+        <code>time.time()</code><br></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>To subscribe, call the <code>subscribe</code> method of the ES with the desired subject(s) and a proxy for your
+  subscriber object. If you want to subscribe to multiple subjects based on <strong>pattern matching,</strong> call the
+  <code>subscribeMatch</code> method instead with the desired subject pattern(s) and a proxy for your subscriber
+  object. The patterns are standard <code>re</code>-style regex expressions. See the standard <code>re</code> module
+  for more information. The pattern <code>'^STOCKQUOTE\\.S.*$'</code> matches STOCKQUOTE.SUN, STOCKQUOTE.SAP but not
+  STOCKQUOTE.IBM, NYSE.STOCKQUOTE.SUN etcetera. Once more: the subjects are case insensitive. The patterns are matched
+  case insensitive too.</p>
+
+  <p>To unsubscribe, call the <code>unsubscribe</code> method with the subject(s) or pattern(s) you want to unsubscribe
+  from, and a proxy for the subscriber object that has been previously subscribed. This will remove the subscriber from
+  the subscription list and also from the pattern match list if the subject occurs as a pattern there. The ES
+  (actually, Pyro) is smart enough to see if multiple (different) proxy objects point to the same subscriber object and
+  will act correctly.<br></p>
+
+  <h4>Using the Subscriber base class from the Event Server</h4>As you can see it can be a bit complex to get your
+  subcribers up and running. An easier way to do this is to use the <code>Subscriber</code> base class provided in
+  <code>Pyro.EventService.Clients. </code> Subclass your event listeners (subscribers) from this class. The init takes
+  care of locating the ES, and you can just call the
+  <code>subscribe(subjects)</code>,<code>subscribeMatch(subjectPatterns)</code> and <code>unsubscribe(subjects)</code>
+  methods on the object itself. No ES proxy code needed. This base class also starts a Pyro daemon and by calling
+  <code>listen()</code>, your code starts listening on incoming events. When you want to abort the event loop, you have
+  to call <code>self.abort()</code> from within the event handler method.
+
+  <p>The multithreading of the <code>event</code> method can be controlled using the
+  <code>setThreading(threading)</code> method. If you <code>threading=</code>0, the threading will be switched off (it
+  is on by default unless otherwise configured). Your events will then arrive purely sequentially, after processing
+  each event. Call this method before entering the <code>requestLoop</code> or <code>handleRequests</code> or
+  <code>listen.</code></p>
+
+  <p>A minimalistic event listener that prints the stockquote events published by the example code above:<br></p>
+  <pre style="margin-left: 40px;">
+from Pyro.EventService.Clients import Subscriber<br>
+class StockSubscriber(Subscriber):
+    def __init__(self):
+        Subscriber.__init__(self)
+        self.subscribe(&quot;StockQuotes&quot;)
+    def event(self, event):
+        print &quot;Got a stockquote: %s=%f&quot; % (event.msg)
+
+sub = StockSubscriber()
+sub.listen()</pre>
+
+  <h4>Authentication passphrase</h4>
+
+  <p>The <code>__init__</code> of both the Publisher and the Subscriber takes an optional <code>ident</code> argument.
+  Use this to specify the authentication passphrase that will be used to connect to the ES (and also to connect to the
+  Name Server).<br></p>
+
+  <h3><a name="thread" id="thread"></a>Threads, Subscribers and Queues</h3>As pointed out above the events are
+  delivered to your subscribers in a multithreaded way. Your subscriber may still be processing an event when the next
+  one arrives. Use the <code>setThreading(threading)</code> method of the <code>Subscriber</code> base class to control
+  the threading. If you set threading=0, the threading will be switched off (it is on by default). But a better way to
+  process events sequentially is to use Python's <code>Queue</code> module: you create a Queue in your
+  subscriber process that is filled with arriving events, and you have a single event consumer process that takes
+  events out of the queue one-by-one:
+
+  <table align="center" class="noborder">
+    <tr>
+      <td style="padding: 4pt; background: maroon; color: yellow; text-align: center;">Pyro Event Server</td>
+
+      <td><em>multithreaded</em></td>
+    </tr>
+
+    <tr>
+      <td style="text-align: center; font-size:150%;">&darr;</td>
+
+      <td></td>
+    </tr>
+
+    <tr>
+      <td style="padding: 4pt; background: navy; color: white; text-align: center;">Subscriber(s)</td>
+
+      <td><em>multithreaded</em></td>
+    </tr>
+
+    <tr>
+      <td style="text-align: center; font-size:150%;">&darr;</td>
+
+      <td></td>
+    </tr>
+
+    <tr>
+      <td style="padding: 4pt; background: teal; color: white; text-align: center;"><code>Queue.Queue</code></td>
+
+      <td></td>
+    </tr>
+
+    <tr>
+      <td style="text-align: center; font-size:150%;">&darr;</td>
+
+      <td></td>
+    </tr>
+
+    <tr>
+      <td style="padding: 4pt; background: navy; color: white; text-align: center;">Consumer/Worker</td>
+
+      <td><em>singlethreaded</em></td>
+    </tr>
+  </table>
+
+  <h3><a name="examples" id="examples"></a>Examples</h3>
+  To see how you use the ES, have a look at the &quot;stockquotes&quot; and
+  &quot;countingcars&quot; examples. Also have a look at the client skeleton code that comes with the ES.
+  To exercise the ES to the max, have a look at the fully threaded &quot;stresstest&quot; example. To see
+  how to start and use the ES from within your own program, have a look at the &quot;AllInOne&quot; example.<br>
+  <div class="nav">
+  <hr>
+  <table width="100%">
+    <tbody>
+      <tr>
+        <td align="left"><a href="5-nameserver.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> |
+        <a href="7-features.html">next&gt;</a></td>
+
+        <td align="right">Pyro Manual</td>
+      </tr>
+    </tbody>
+  </table></div>
+</body>
+</html>

@@ -1,0 +1,18 @@
+Address                  HWtype  HWaddress           Flags Mask            Iface
+viroin.esat.kuleuven.be  ether   00:1A:A0:BC:86:25   C                     eth0
+lomme.esat.kuleuven.be   ether   00:1A:A0:BC:86:07   C                     eth0
+rupel.esat.kuleuven.be   ether   00:1A:A0:BC:8A:74   C                     eth0
+jeker.esat.kuleuven.be   ether   00:1A:A0:BC:88:AB   C                     eth0
+warche.esat.kuleuven.be  ether   00:1A:A0:BC:82:93   C                     eth0
+semois.esat.kuleuven.be  ether   00:1A:A0:BC:BD:BF   C                     eth0
+dijle.esat.kuleuven.be   ether   00:1A:A0:BC:7F:A8   C                     eth0
+herk.esat.kuleuven.be    ether   00:1A:A0:BC:78:6E   C                     eth0
+vesder.esat.kuleuven.be  ether   00:1A:A0:BC:A6:12   C                     eth0
+leie.esat.kuleuven.be    ether   00:1A:A0:BC:74:74   C                     eth0
+nete.esat.kuleuven.be    ether   00:1A:A0:BC:85:B2   C                     eth0
+demer.esat.kuleuven.be   ether   00:1A:A0:BC:85:87   C                     eth0
+vierre.esat.kuleuven.be  ether   00:11:43:58:BA:68   C                     eth0
+gw-10-33-140-0.esat.kul  ether   00:0A:41:40:43:FF   C                     eth0
+zenne.esat.kuleuven.be   ether   00:1A:A0:BC:88:BE   C                     eth0
+dommel.esat.kuleuven.be  ether   00:1A:A0:BC:47:10   C                     eth0
+durme.esat.kuleuven.be   ether   00:1A:A0:BC:85:C7   C                     eth0

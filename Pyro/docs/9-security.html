@@ -1,0 +1,419 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<!-- $Id: 9-security.html,v 2.28 2007/02/15 22:23:11 irmen Exp $ -->
+<head>
+  <title>PYRO - Security</title>
+  <link rel="stylesheet" type="text/css" href="pyromanual_print.css" media="print">
+  <link rel="stylesheet" type="text/css" href="pyromanual.css" media="screen">
+</head>
+
+<body>
+  <div class="nav">
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="8-example.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "10-errors.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table>
+<hr></div>
+
+  <h2><u>9. Security</u></h2>This chapter discusses the security aspects of Pyro, the features you can use to control
+  security, and some important warnings.
+
+  <ul>
+    <li><a href="#warning"><em>Imporant Security Warning</em></a></li>
+
+    <li><a href="#validator">Authenticating using Connection Validators</a></li>
+
+    <li><a href="#customvalidator">Customizing authentication using custom Validator</a></li>
+
+    <li><a href="#nameserverplugins">Name Server security plugins</a></li>
+
+    <li><a href="#mobile">Mobile objects and Code Validators</a></li>
+
+    <li><a href="#firewalls">Firewalls</a></li>
+
+    <li><a href="#pickle">The pickle trojan security problem, and XML pickling</a></li>
+
+    <li><a href="#ssl">SSL (secure socket layer) support</a></li>
+  </ul>
+
+  <h3><a name="warning" id="warning"></a>Imporant Security Warning</h3><strong>Read this carefully:</strong> Pyro is a
+  technology that may easily expose private data to the world, if used incorrectly. While Pyro has some security
+  related functions such as connection validators, it is imporant to understand that exposing a remote object interface
+  in any way (with Pyro, with XMLRPC, or whatever) on an untrusted network (like the internet) possibly creates a big
+  security risk. The risk could be because of a hole in Pyro itself or because of security issues in the used libraries
+  (such as pickle), Python version, or even operating system. <em>Be sure to know what you are doing when using Pyro
+  outside a trusted network and outside trusted applications! Pyro has never been truly designed to provide a secure
+  communication mechanism, nor has it had a security review or -test by a security expert. Read the Pyro software
+  license and <a href="LICENSE">DISCLAIMER</a>.</em>
+
+  <h3><a name="validator" id="validator"></a>Authenticating using Connection Validators</h3>To guard against unwanted
+  or unauthorized connections, Pyro uses so-called <em>new connection validators</em>. These are objects that are
+  called from the Pyro Daemon to check whether a Pyro server may or may not accept a new connection to that daemon that
+  a client tries to make. By default, there is only one built-in check; the number of connections was limited to a
+  certain amount specifed in the PYRO_MAXCONNECTIONS config item). This check is done by the <em>default connection
+  validator</em> <code>Pyro.protocol.DefaultConnValidator</code>. The fun is that you can supply your own validator
+  object, and that you can therefore implement much more complex access checks. For instance, you might want to check
+  if the client's site is authorized to connect. Or perhaps you require a password to connect.
+
+  <p>The default validator already supports passphrase protection as authentication validation. This means that a
+  client that wants to connect to your Pyro server needs to supply a valid authentication passphrase, or the connection
+  is denied. The check takes place automatically (it is performed by the default connection validator), at connect
+  time. The following items are important:</p>
+
+  <ul>
+    <li>Unless you tell Pyro otherwise, no authentication check is done. Clients can connect anonymously, unless you
+    deny access based on max. connections or client host address.</li>
+
+    <li>No passphrases are stored by Pyro, not on disk, not in memory. Pyro uses secure hmac-md5 hashes to compare
+    passphrases.</li>
+
+    <li>Server sends an authentication challenge to the client that must be used to generate the actual auth ident
+    (digest of passphrase+challenge). Because the challenge changes for each connection attempt, and thus the required
+    auth ident changes, this scheme is safe against eavesdroppers (auth idents are not reusable).</li>
+
+    <li>Once a client is accepted and connected, no further checks are done.</li>
+
+    <li>The same passphrases are valid for all objects connected to a certain Pyro Daemon.</li>
+
+    <li>Clients can use a different passphrase for each object.</li>
+
+    <li>There is no config item to specify the passphrase (because this would be very insecure). Code your own
+    passphrase requester/supplier.</li>
+  </ul>The Name Server and the Event Server can both be instructed to require authentication too.
+
+  <p>Look at the &quot;denyhosts&quot;, &quot;authenticate&quot; and &quot;user_passwd_auth&quot; examples
+      to see how you can use the connection validators.</p>
+
+  <h4>How to use the default connection Validator</h4>You can specify the maximum number of connections that Pyro
+  accepts by setting the <code>PYRO_MAXCONNECTIONS</code> configuration item. This limit is <em>always</em> checked
+  when a new client connects.
+
+  <p>To enable passphrase authentication, you must tell the Pyro Daemon a list of accepted passphrases. Do this by
+  calling the <code>setAllowedIdentifications(ids)</code> method of the daemon, where <code>ids</code> is a list of
+  passphrases (strings). If you use <code>None</code> for this, the authentication is disabled again. <em>Note that the
+  ID list is a shared resource and that you will have to use thread locking if you change it from different
+  threads.</em> To specify for your client what passphrase to use for a specific object, call the
+  <code>proxy._setIdentification(id)</code> method of the Pyro proxy, where <code>id</code> is your passphrase
+  (string). Use <code>Null</code> to disable authentication again. Call the method right after you obtained the proxy
+  using <code>getProxyForURI</code> or whatever.</p>
+
+  <p>If a connection is denied, Pyro will raise a <code>ConnectionDeniedError</code>, otherwise the connection is
+  granted and your client proxy can invoke any methods it likes, untill disconnected.</p>
+
+  <h4>The default SSL connection Validator</h4>
+  For SSL connections, the <code>Pyro.protocol.BasicSSLValidator</code> is
+  used by default. This is an extension to the normal validator, it also checks if the client has supplied
+  a SSL certificate. See the &quot;ssl&quot; example for details.
+
+  <h3><a name="customvalidator" id="customvalidator"></a>Customizing authentication using custom Validator</h3>All
+  authentication logic is contained in the Connection Validator object. By writing your own specialization of the
+  <code>DefaultConnValidator</code>, you can control all logic that Pyro uses on the client-side and server-side for
+  authenicating new connections. You are required to make a subclass (specialization) of the default connection
+  validator <code>Pyro.protocol.DefaultConnValidator</code>. There are two methods that you can use to set your own
+  validator object:
+
+  <dl>
+    <dt>Client side, on the Proxy:</dt>
+
+    <dd><code>_setNewConnectionValidator(validator)</code></dd>
+
+    <dt>Server side, on the Daemon:</dt>
+
+    <dd><code>setNewConnectionValidator(validator)</code></dd>
+  </dl>In both cases, you have to pass an instance object of the validator that you want to use. Don't forget that you
+  still have to use the two methods already mentioned above:
+
+  <dl>
+    <dt>Client side, on the Proxy:</dt>
+
+    <dd><code>_setIdentification(ident)</code><br>
+    <strong>Note:</strong> the ident that you provide doesn't have to be a single string (or passphrase). It can be any
+    Python object you want, for instance a login/password tuple! It is passed unchanged into the connection validator
+    (see below) that creates a protocol token from it.</dd>
+
+    <dt>Server side, on the Daemon:</dt>
+
+    <dd><code>setAllowedIdentifications(idents)</code></dd>
+  </dl>
+  The &quot;denyhosts&quot; and &quot;user_passwd_auth&quot; examples show two possible ways to use a custom
+  connection validator.
+
+  <p>Below you see the meaning of the different methods that are used in the connection validator class (and that you
+  can override in your custom validator):</p>
+
+  <dl>
+    <dt><code>class MyCustomValidator(Pyro.protocol.DefaultConnValidator):</code></dt>
+
+    <dd><em>...has to be inherited...</em></dd>
+  </dl>
+
+  <blockquote>
+    <dl>
+      <dt><code>def __init__(self):</code></dt>
+
+      <dd><code>Pyro.protocol.DefaultConnValidator.__init__(self)</code> <em>...required...</em></dd>
+
+      <dt><code>def acceptHost(self,daemon,connection):</code></dt>
+
+      <dd><em>...called first, to check the client's origin. Arguments are the current Pyro Daemon, and the connection
+      object (<code>Pyro.protocol.TCPConnection</code> object). The client's socket address is in
+      <code>connection.addr</code>. You can check the client's IP address for instance, to see if it is in a trusted
+      range. The default implementation of this method checks if the number of active connections has not reached the
+      limit. (<code>Pyro.config.PYRO_MAXCONNECTIONS</code>) <strong>See table below for return codes</strong></em></dd>
+
+      <dt><code>def acceptIdentification(self, daemon, connection, token, challenge):</code></dt>
+
+      <dd><em>...called to verify the client's identification token (check if the client supplied a correct
+      authentication passphrase). The arguments are: daemon and connection same as above, client's token object (that
+      was created by <code>createAuthToken</code> below), server challenge object that was sent to the client. The
+      default implementation uses <code>createAuthToken</code> to create a secure hash of the auth id plus the
+      challenge to compare that to the client's token. Effectively, it checks if the client-supplied hash is among the
+      accepted passphrases of the daemon (hash of passphrase+challenge) -- if any are specified, otherwise it is just
+      accepted. <strong>See table below for return codes</strong>. NOTE: you can use the <code>connection</code>
+      argument to store the authentication token (which might be a username). A Pyro object may access this again by
+      getting the connection object <code>self.getLocalStorage().caller</code> and getting the authentication token
+      from there.</em></dd>
+
+      <dt><code>def createAuthToken(self, authid, challenge, peeraddr, URI, daemon):</code></dt>
+
+      <dd><em>...called from both client (proxy) and server (daemon) to create a token that is used to validate the
+      connection. The arguments are: identification string (comes from <code>mungeIdent</code> below), challenge from
+      server, socket address of the other party, Pyro URI of the object that is to be accessed, current Pyro Daemon.
+      When in the client (proxy), daemon is always None. When in the server (daemon), URI is always None. The default
+      implementation returns a secure hmac-md5 hash of the ident string and the challenge.</em></dd>
+
+      <dt><code>def createAuthChallenge(self, tcpserver, conn):</code></dt>
+
+      <dd><em>...called in the server (daemon) when a new connection comes in. It must return a challenge string that
+      is to be sent to the client, to be used in creating the authentication token. By default it returns a secure hash
+      of server IP, process ID, timestamp and a random value. Currently it is <strong>required</strong> that the
+      challenge string is exactly <strong>16</strong> bytes long! (a md5 hash is 16 bytes).</em></dd>
+
+      <dt><code>def mungeIdent(self, ident):</code></dt>
+
+      <dd><em>utility method to change a clear-text ident string into something that isn't easily recognised.
+              By default it returns the secure hash of the ident string. This is used to store the authentication
+              strings more securely (<code>setAllowedIdentifications</code>). The ident object that is
+              passed is actually free to be what you want, for instance you could use <code>obj._setIdentification(
+              (&quot;login&quot;, &quot;password&quot;) )</code> to use a
+      login/password tuple. You have to use a custom connection validator to handle this, of course.</em></dd>
+
+      <dt><code>def setAllowedIdentifications(self, ids):</code></dt>
+
+      <dd><em>To tell the Daemon what identification strings are valid (the allowed secure passphrases).</em></dd>
+
+      <dt><br>
+      <em>(the following only if you subclass from <code>Pyro.protocol.BasicSSLValidator</code> (for SSL
+      connections):</em><br>
+      <code>def checkCertificate(self, cert):</code></dt>
+
+      <dd><em>...checks the SSL certificate. The client's SLL certificate is passed as an argument.
+      <strong>Note:</strong> this method is called from the <code>acceptHost</code> method, so you must leave that one
+      as-is or call the <code>BasicSSLValidator</code> base class implementation of that method if you override it.
+      <strong>See table below for return codes</strong></em></dd>
+    </dl>
+  </blockquote>The three check methods <code>acceptHost</code>, <code>acceptIdentification</code> and
+  <code>checkCertificate</code> must return <code>(1,0)</code> if the connection is accepted, or <code>(0,code)</code>
+  when the connection is refused, where <code>code</code> is one of the following:
+
+  <table>
+    <tr>
+      <th>Deny Reason Code</th>
+
+      <th>Description</th>
+    </tr>
+
+    <tr>
+      <td><code>Pyro.constants.DENIED_UNSPECIFIED</code></td>
+
+      <td>unspecified</td>
+    </tr>
+
+    <tr>
+      <td><code>Pyro.constants.DENIED_SERVERTOOBUSY</code></td>
+
+      <td>server too busy (too many connections)</td>
+    </tr>
+
+    <tr>
+      <td><code>Pyro.constants.DENIED_HOSTBLOCKED</code></td>
+
+      <td>host blocked</td>
+    </tr>
+
+    <tr>
+      <td><code>Pyro.constants.DENIED_SECURITY</code></td>
+
+      <td>security reasons (general)</td>
+    </tr>
+  </table>
+
+  <p>Pyro will raise the appropriate <code>ConnectionDeniedError</code> on the client when you deny a new connection.
+  On the server, you'll have to log the reason in the Pyro logfile yourself, if desired. When you accept a connection,
+  the daemon will log an entry for you.</p>
+
+  <h3><a name="nameserverplugins" id="nameserverplugins"></a>Name Server security plugins</h3>The Name Server supports
+  security plugins, to facilitate access control to the Name Server. Different options are available:
+
+  <ul>
+    <li>A validator for incoming broadcast server requests (such as 'what is your location' and 'shutdown'). You can
+    now decide what or when such commands are accepted or denied, for instance, based on client IP address.</li>
+
+    <li>A new connection validator for the NS server itself (which is a regular Pyro object, and this is the general
+    validator mentioned earlier). With this you can implement very coarse access control to the NS, for instance, deny
+    certain clients based on their IP address.</li>
+  </ul>You'll have to write a Python module that contains the following:
+
+  <ul>
+    <li><code>BCGuard()</code> function that returns a BC request validator object, or <code>None</code>.</li>
+
+    <li><code>NSGuard()</code> function that returns a NS new conn validator object, or <code>None</code>.</li>
+
+    <li>A class that implements a BC request validator. This class must inherit from
+    <code>Pyro.naming.BCReqValidator</code>. You must override the two methods that check for each command if it is
+    allowed or if it is refused. These are <code>acceptLocationCmd(self)</code> and
+    <code>acceptShutdownCmd(self)</code>, and they return 0 or 1 (accept or deny). You can access
+    <code>self.addr</code> to have the client's address (ip,port). You can call <code>self.reply('message')</code> to
+    send a message back to the client. This may be polite, to let it know why you refused the command.</li>
+
+    <li>A class that implements a NS new conn validator. See the documentation on connection validators, above, to see
+    how you must implement this.</li>
+  </ul>
+  When you start the NS using the '-s' switch, it will read your module and call the two functions mentioned
+  above to get your validator objects. Make sure your module is in your Python import path. The NS prints
+  the names of the plugins to show that it's using them and then starts. Have a look at the &quot;NS_sec_plugins&quot;
+  example to see how things are done.
+
+  <h3><a name="mobile" id="mobile"></a>Mobile objects and Code Validators</h3>
+  The mobile code support of Pyro is very
+  powerful but also dangerous, because the server is running code that comes in over the wire. Any code
+  can enter over the wire, correct, buggy, but also evil code (Trojans). It's obvious that loading and
+  running arbitrary code is dangerous. That's why you should set a <em>codeValidator</em> for each Pyro
+  object that might load mobile code (mobile objects). The default validator offers no protection: it
+  accepts all code. <em>Be aware that a simple check
+  on the name of uploaded code is not enough to make things safe; the client may supply it's own evil
+  version of the module you thought was perfectly safe.</em> Currently, there is no mechanism to guarantee
+  that the code is safe (for instance using some form of &quot;code signing&quot;).
+
+  <p>This codeValidator is a function (or callable object) that takes three arguments: the name of the module, the code
+  itself, and the address of the client (usually a (IP,port) tuple). It should return 0 or 1, for 'deny' and 'accept'.
+  <code>Pyro.core.ObjBase</code>, the base class of all Pyro objects, has a <code>setCodeValidator(v)</code> method
+  that you must call with your custom validator function (or callable object). You can set a different validator for
+  each Pyro object that your server has.</p>
+
+  <p>The codeValidator is used for both directions; it checks if code is allowed from clients into the
+      server, but also if code is allowed to be sent from the server to clients. In the first case, all
+      three parameters have a value as mentioned above. In the second case (code from server to client),
+      only the <em>name</em> has a value, the other two
+  are None. For example, the code validator shown below is taken from the &quot;agent2&quot; example. It checks
+  if incoming code is from the &quot;agent.ShoppingAgent&quot; module, and outgoing code is from the &quot;objects&quot;
+      package:</p>
+  <pre>
+def codeValidator(name,module,address):
+        if module and address:
+                return name=='agent.ShoppingAgent'              # client uploads to us
+        else:
+                return name.startswith(&quot;objects.&quot;)              # client downloads from us
+   .
+   .
+   .
+mall.setCodeValidator(codeValidator)
+</pre>
+
+  <p>Notice that a client doesn't have a code validator. If you're using 2-way mobile code (you've enabled
+  <code>PYRO_MOBILE_CODE</code> on the client), you will silently receive everything you need from the server. This is
+  because the clients usually trust the server... otherwise they wouldn't be calling it, would they?</p>
+
+  <h3><a name="firewalls" id="firewalls"></a>Firewalls</h3>Using a firewall to protect your network has nothing to do
+  with security in Pyro, but it may affect Pyro. Ofcourse the firewall can be used to fully protect your network for
+  systems outside the firewall; it can make it impossible for those systems to connect to your Pyro servers. But if you
+  want to access Pyro objects from outside the firewall, you may have to take some additional steps. Because they have
+  to do with configuring Pyro, and not with security, they are described in detail in the <a href=
+  "7-features.html#dnsip">Freatures chapter</a>.
+
+  <h3><a name="pickle" id="pickle"></a>The pickle trojan security problem, and XML pickling</h3>
+
+  <h4>Security warning: possible trojan attack</h4>By default, Pyro uses the native Python <code>pickle</code> protocol
+  to pass calls to remote objects. There is a security problem with <code>pickle</code>: it is possible to execute
+  arbitrary code on the server by passing an artificially constructed pickled string message. The standard Python
+  <code>Cookie</code> module also suffers from this problem. At the moment of writing, the Python documentation is not
+  clear on this subject. The problem is known to various people. <em>Using Pyro over the internet could expose your
+  server to this vulnerability!!!!</em>
+
+  <p>Using the (safe) <code>marshal</code> module is no option for Pyro because we lose the ability to
+      serialize user defined objects. But, if you accept a performance penalty of an order of a magnitude,
+      and more required bandwith (2-4 times more), you can choose to use the safe XML pickling.
+  To enable this, set the <code>PYRO_XML_PICKLE</code> config item to the appropriate value.
+  You need to have the appropriate library installed otherwise Pyro won't start. The server
+  will answer in XML pickled messages also, regardless of the server's <code>PYRO_XML_PICKLE</code> setting.
+  So make sure that the correct XML packages are installed on both ends of the communication. If the
+  server is configured to use <code>PYRO_XML_PICKLE</code>, it will
+  <em>only</em> accept XML pickled requests! This means that if you set this option, your server is safe
+  against pickling attacks.</p>
+
+  <p>Please note that at least since Python 2.2 a few pickle security flaws appear to have been removed, and the
+  obvious trojan exploit with pickle no longer works on Python 2.2+. But still, do you trust pickle? ;-) Use
+  <code>PYRO_XML_PICKLE</code> if you want to be safe.</p>
+  <p>If you decide to use the 'gnosis' XML Pickler, there is an additional config item to think about: <code>PYRO_GNOSIS_PARANOIA</code>.
+   It sets the 'paranoia' level that will be used for the Gnosis XML pickler. Higher=more secure. 
+   The default setting (0) prevents automatic imports of modules during unpickling, because
+   this is potentially unsafe. However, it creates problems when you are sending arbitrary
+   user-defined types across the wire. The receiving side may not be able to fully
+   reconstruct the data types that were sent. You could explicitly import the needed
+   modules on the receiving side, or you could consider to set this config item to -1, 
+which enables automatic imports of user defined modules in the Gnosis pickler.
+Note that setting it to a higer value than 0 breaks Pyro altogether because the pickler
+will operate in a too strict way. The only sensible values at this time are 0 and -1.
+When you want to use mobile code with Gnosis XML pickler, you need to set this to -1 as well.
+Note that you have to use the same Gnosis XML library version everywhere. You can't mix 
+older versions with newer versions.</p>
+
+  <h3><a name="ssl" id="ssl"></a>SSL (secure socket layer) support</h3>
+  Pyro supports communication over secure sockets
+  (SSL). See the &quot;ssl&quot; example. Because Python doesn't support server-side SSL out-of-the-box, you'll
+  need the following add-on libraries to enable SSL support:
+
+  <ul>
+    <li><a href="http://wiki.osafoundation.org/bin/view/Projects/MeTooCrypto">M2Crypto</a> (0.13 or later recommended)</li>
+
+    <li><a href="http://www.openssl.org">OpenSSL</a> (needed by M2Crypto)</li>
+  </ul>Why M2Crypto? Because it works for both client and server applications, and is thread safe.
+  <strong>Note:</strong> M2Crypto needs support for RC5 and IDEA compiled into OPENSSL. Since they're copyrighted these
+  options are normally not included in most major OpenSSL ditributions. You might have to recompile OpenSSL from the
+  sources yourself. Beware that if you use this to upgrade to a new OpenSSL version you also have to recompile OpenSSH
+  since it does a version check on the OpenSSL library.
+
+  <p>To start using SSL, you need to tell your Pyro daemon that it must use SSL instead of regular sockets. Do that by
+  passing a <code>prtcol</code> parameter when you create a daemon, as follows:</p>
+  <pre>
+daemon = Pyro.core.Daemon(prtcol='PYROSSL')
+</pre>(the <code>prtcol</code> defaults to 'PYRO' ofcourse). All Pyro objects connected to this daemon will get
+registered in the Name Server using the special PYROSSL protocol, that tells Pyro to use SSL instead of regular
+sockets. You may also want to add a special SSL connection validator on your daemon that checks the client certificate.
+The client programs don't need any changes because Pyro knows automatically how to deal with the PYROSSL protocol.
+There are a few configuration items that deal with the SSL configuration, look for <code>PYROSSL_CERTDIR</code> and the
+other items starting with <code>PYROSSL</code>. See the <a href="http://wiki.osafoundation.org/bin/view/Projects/MeTooCrypto">M2Crypto
+homepage</a> or <a href="http://www.openssl.org">OpenSSL documentation</a> for instructions on how to create your own
+Certificate Authority- and server/client certificates.
+
+  <p>If you're using the Name Server to look up your SSL objects, you won't have to change anything in the client code
+  because the SSL objects are registered with special <code>PYROSSL://</code> URIs in the NS, and Pyro knows how to
+  deal with that. If you're <em>not</em> using the NS and doing direct <code>PYROLOC://</code> lookups, you have to
+  change that in <code>PYROLOCSSL://</code> to tell Pyro it needs to use SSL. (likewise, if you're dealing with
+  <code>PYRO://</code> URIs yourself, you'll need to change that into <code>PYROSSL://</code>)</p>
+  <div class="nav">
+  <hr>
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="8-example.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "10-errors.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table></div>
+</body>
+</html>

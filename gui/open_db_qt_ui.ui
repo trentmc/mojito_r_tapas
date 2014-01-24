@@ -1,0 +1,50 @@
+<!DOCTYPE UI><UI version="3.3" stdsetdef="1">
+<class>OpenDatabaseUI</class>
+<widget class="QDialog">
+    <property name="name">
+        <cstring>OpenDatabaseUI</cstring>
+    </property>
+    <property name="geometry">
+        <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>602</width>
+            <height>830</height>
+        </rect>
+    </property>
+    <property name="caption">
+        <string>Form1</string>
+    </property>
+    <grid>
+        <property name="name">
+            <cstring>unnamed</cstring>
+        </property>
+        <widget class="QTable" row="0" column="0">
+            <property name="name">
+                <cstring>tblValues</cstring>
+            </property>
+            <property name="resizePolicy">
+                <enum>Default</enum>
+            </property>
+            <property name="numRows">
+                <number>23</number>
+            </property>
+            <property name="numCols">
+                <number>7</number>
+            </property>
+            <property name="sorting">
+                <bool>false</bool>
+            </property>
+        </widget>
+        <widget class="QPushButton" row="1" column="0">
+            <property name="name">
+                <cstring>btnOpenFile</cstring>
+            </property>
+            <property name="text">
+                <string>Open</string>
+            </property>
+        </widget>
+    </grid>
+</widget>
+<layoutdefaults spacing="6" margin="11"/>
+</UI>

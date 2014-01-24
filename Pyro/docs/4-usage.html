@@ -1,0 +1,621 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<!-- $Id: 4-usage.html,v 2.37.2.5 2008/06/01 09:45:35 irmen Exp $ -->
+<head>
+  <title>PYRO - Usage</title>
+  <link rel="stylesheet" type="text/css" href="pyromanual_print.css" media="print">
+  <link rel="stylesheet" type="text/css" href="pyromanual.css" media="screen">
+</head>
+
+<body>
+  <div class="nav">
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="3-install.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "5-nameserver.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table>
+<hr></div>
+
+  <h2><u>4. Pyro Usage</u></h2>
+
+  <ul>
+    <li><a href="#intro">Introduction</a></li>
+
+    <li><a href="#scripts">Pyro script tools</a></li>
+
+    <li><a href="#class">Writing the remote class</a></li>
+
+    <li><a href="#server">Writing the server</a></li>
+
+    <li><a href="#client">Writing the client</a></li>
+
+    <li><a href="#runtime">Runtime setup</a></li>
+
+    <li><a href="#runtimectrl">Runtime control and Logging</a></li>
+
+    <li><a href="#notes">Last Notes</a></li>
+  </ul>
+
+  <h3><a name="intro" id="intro"></a>Introduction</h3>This chapter will show the Pyro development process: how to build
+  a Pyro application. Let's repeat the <a href="1-intro.html">scenario</a> from the Introduction chapter here, but with
+  some more detail:
+
+  <ol>
+    <li>You write a Python class that you want to access remotely. Do this as if it were a normal Python class (but see
+    the <a href="7-features.html#rules">Features and Guidelines</a> chapter).</li>
+
+    <li>Write a server process that performs the following tasks:
+
+      <ul>
+        <li>Create one or more instances of your remote object.</li>
+
+        <li>Create a Pyro Daemon instance.</li>
+
+        <li>Find the Name Server.</li>
+
+        <li>Connect the remote object instances to the Daemon that will register them with the Name Server.</li>
+
+        <li>Sit in a loop telling the Daemon to handle incoming requests.</li>
+      </ul>
+    </li>
+
+    <li>Write a client program that does the following:
+
+      <ul>
+        <li>Find the Name Server.</li>
+
+        <li>Query the NS for the requires objects. You'll get URIs back.</li>
+
+        <li>Create a Dynamic Proxy for the URI.</li>
+
+        <li>Call methods on the proxy object as if it were the real thing.</li>
+      </ul>
+    </li>
+
+    <li>Make sure the Pyro Name Server is running.</li>
+
+    <li>Start your server process. If it complains that the names it wants to register already exist, use the
+    <code>pyro-nsc</code> tool to unregister them, or restart the NS.</li>
+
+    <li>Run the client!</li>
+  </ol>In the following sections each step is explained in more detail.
+
+  <h3><a name="scripts" id="scripts"></a>Pyro script tools</h3>
+  <p>Before using them let us first study the usage of the
+  script tools. Pyro comes with two flavors, Un*x-style shellscripts and Windows/DOS command files. The Windows-style
+command files have the '.cmd' extension. </p>
+
+  <dl>
+    <dt><code>pyro-genguid</code> &nbsp;&nbsp;(GUID generator)</dt>
+
+    <dd>- No arguments<br>
+    - This is a very simple GUID generator. It uses the internal Pyro GUID generator to print a new GUID.<br>
+    <br></dd>
+
+    <dt><code>pyro-ns, pyro-rns</code> &nbsp;&nbsp;(Name Server)</dt>
+
+    <dd>These scripts are explained in the <a href="5-nameserver.html#cmds">Name Server chapter</a>.<br>
+    <br></dd>
+
+    <dt><code>pyro-es</code> &nbsp;&nbsp;(Event Server)</dt>
+
+    <dd>This script is explained in the <a href="11-services.html#event">Event Server (Pyro Services) chapter</a>.<br>
+    <br></dd>
+
+    <dt><code>pyro-nsc</code> &nbsp;&nbsp;(Name Server Control tool)</dt>
+
+    <dd>
+      - Arguments: [-h host] [-p port] [-c bcaddr] [-i identification] command [args...]<br>
+      - Controls the Pyro Name Server. '-h host' specifies the host where the Name Server should be contacted. '-p
+      port' specifies a non-standard NS broadcast port to contact.
+      '-c bcaddr' allows you to override the broadcast address.
+       With '-i identification' you can supply the
+      authentication passphrase that is used to connect to the Name Server. When it contains spaces, use quotes around
+      it. 'command' is one of the following:
+
+      <ul>
+        <li>ping: just check if the NS is up and running.</li>
+
+        <li>list: prints the contents of a name group. Argument is the group name to list.</li>
+
+        <li>listall: prints a list of all registered names (expanded).</li>
+
+        <li>register: register a new name. Arguments are the name and the URI.</li>
+
+        <li>resolve: search for names. Arguments are the names to search for.</li>
+
+        <li>remove: remove registered names from the NS. Arguments are the names to remove.</li>
+
+        <li>creategroup: create a name group. Argument is the group to create.</li>
+
+        <li>deletegroup: delete a name group and all contents. Argument is the group to delete.</li>
+
+        <li>showmeta: Shows system and user meta info. Argument is the group or object to show meta info from.</li>
+
+        <li>setmeta: Set user meta info. Arguments are the object name and the meta data string.</li>
+
+        <li>shutdown: send the NS a shutdown request, so that a clean shutdown is performed. No arguments.</li>
+      </ul><br>
+    </dd>
+
+    <dt><code>pyro-xnsc</code> &nbsp;&nbsp;(Graphical NS control tool)</dt>
+
+    <dd>- No arguments<br>
+    - This is a graphical version of the <code>nsc</code> command-line tool. Currently it needs Tk for the GUI, so you
+    have to have a Tk-enabled Python on your system. The GUI is simple and
+    should explain itself. You can enter the hostname in the textbox at the top and press &lt;enter&gt; to contact the
+    NS at that host, or just press the 'Auto Discover' button at the top right. If the NS has been found, the rest of
+    the buttons are enabled. If your Name Server requires an authorization passphrase, you must enter that first in the
+    ID entry box. After that, you can connect to the NS. Once connected, the passphrase is erased in the display for
+    security reasons. You have to type it again if you need to reconnect.<br>
+    <br></dd>
+    
+    <dt><code>pyro-wxnsc</code> &nbsp;&nbsp;(Alternative Graphical NS control tool)</dt>
+    <dd>- No arguments<br>
+    	- This is similar to the <code>xnsc</code> tool, but based on the WxPython GUI toolkit.
+    	<br>
+    <br></dd>
+
+    <dt><code>pyro-nssvc, pyro-essvc</code> &nbsp;&nbsp;(Windows-only Name Server and Event Server 'NT-service' control
+    scripts)</dt>
+
+    <dd>These scripts are explained in the <a href="5-nameserver.html#cmds">Name Server chapter</a> and the <a href=
+    "6-eventserver.html#starting">Event Server chapter</a>.<br>
+    <br></dd>
+  </dl>
+
+  <h3><a name="class" id="class"></a>Steps 1, 2 and 3: Writing the remote class</h3>Just create a Python module
+  containing the classes you want to access remotely. There are some restrictions induced by Pyro:
+
+  <ul>
+    <li>The remote class can't have a remote <code>__init__</code> method. You should use a regular initialization
+    method that you must call explicitly after binding to the remote object. The <code>__init__</code> method will only
+    be called on the server side when the object is created.</li>
+
+    <li>The remote class can't have direct attribute access unless you conciously choose to use a special proxy that
+    supports attribute access. See below. You don't have to use <em>getters</em> and <em>setters</em> for each member
+    variable any more.</li>
+  </ul>If you keep those in mind, you should be safe. You can use all Python types and parameter lists and exceptions
+  in your code. Pyro will deal with those nicely.
+
+  <h3><a name="server" id="server"></a>Step 4: Writing the server</h3>
+
+  <h4>Initialization</h4>You should initialize Pyro before using it in your server program. This is done by calling
+  <pre>
+   Pyro.core.initServer()
+</pre>If you provide the optional argument <code>banner=1</code>, a short version message is
+printed on the standard output. There is also a second optional argument <code>storageCheck</code>. By default it is 1
+and Pyro will check the availability of the <code>PYRO_STORAGE</code> directory. If you set it to 0, Pyro will not
+perform this check.
+
+  <p>If the tracelevel is not zero, a startup message is written to the log. This message shows the active
+  configuration options.</p>
+
+  <p>It is not strictly required to call <code>Pyro.core.initServer()</code>, if you are creating a Pyro Daemon first.
+  If you're doing that (see next paragraph-- it's a very common thing to do first), Pyro will initialise itself
+  automatically. If you're not doing this, and are using other Pyro things first, it won't work because Pyro will then
+  think you are a client, and call the wrong initialization function. So it's best to call
+  <code>Pyro.core.initServer()</code> yourself. All Pyro code you see in this manual and the Pyro examples do this
+  too.</p>
+
+  <h4>Create a Pyro Daemon</h4>Your server program must create a Pyro Daemon object, which contains all logic necessary
+  for accepting incoming requests and dispatching them to your objects by invoking their methods. You also have to tell
+  the daemon which Name Server to use. When connecting objects to the daemon (<a href="#connecting">see below</a>) it
+  uses this NS to register those objects for you. This is convenient as you don't have to do it yourself.
+  <pre>
+   daemon = Pyro.core.Daemon()
+   daemon.useNameServer(ns)
+</pre>You can provide several arguments when creating the Daemon:
+
+  <table>
+    <tr valign="top">
+      <td><code>protocol</code></td>
+
+      <td>the protocol to use (defaults to &quot;PYRO&quot;)</td>
+    </tr>
+
+    <tr valign="top">
+      <td><code>host</code></td>
+
+      <td>the hostname to bind the server on (defaults to '' - the default host). This may be necessary in the case
+      where your system has more than one hostname/IP address, for instance, when it has multiple network adapters.
+      With this argument you can select the specific hostname to bind the server on.</td>
+    </tr>
+
+    <tr valign="top">
+      <td><code>port</code></td>
+
+      <td>the socket number to use (defaults to the <code>PYRO_PORT</code> configuration item). Keep in mind that Pyro
+      will pay attention to the <code>PYRO_PORT_RANGE</code> config item: if it cannot claim the socket on the given
+      port, it will try the next higher port, and so on, as long as <code>PYRO_PORT_RANGE</code> allows.
+      	Setting this to 0 lets the operating system choose a random port for you (you need to set <code>norange</code>
+      	to 1 or True as well, if you want this).</td>
+    </tr>
+
+    <tr valign="top">
+      <td><code>norange</code></td>
+
+      <td>whether or not to try a range of sockets, i.e. don't pay attention to the <code>PYRO_PORT_RANGE</code>
+      setting. (It's usually best leave this at the default value, 0)
+      You need to set this to 1 or True if you want to use the random port selection (when setting <code>port=0</code>).</td>
+    </tr>
+
+    <tr valign="top">
+      <td><code>publishhost</code></td>
+
+      <td>the hostname that the daemon will use when publishing URIs, in case of a firewall/NAT setup. See the Features
+      chapter. Defaults to the value given to the <code>host</code> parameter.</td>
+    </tr>
+  </table>
+  <p>
+  The second line tells the daemon to use a certain Name Server (<code>ns</code> is a proxy for the NS, see the next
+  paragraph how to get this proxy). It's possible to omit this call but the Daemon will no longer be able to register
+  your objects with the NS. If you didn't register them yourself, it is impossible to find them. The daemon will log a
+warning if it doesn't know your NS.</p>
+
+  <p>If your daemon is no longer referenced, it might be garbage collected (destroyed) by Python. Even if you connected
+  Pyro objects to the daemon. So you have to make sure that you keep a reference to your daemon object at all time.
+  This is recommended anyway because you can then cleanly terminate your Pyro application by calling
+  <code>daemon.shutdown()</code> when it exits. Usually this is not a problem because your program creates a deamon and
+  calls its <code>requestLoop</code>. But a situation might arise where you don't keep a reference to the daemon
+  object, and then things break.</p>
+
+  <h4>Find the Name Server</h4>You have to get a reference to the Pyro Name Server, which itself is a Pyro object. The
+  easiest way is by using the NS Locator:
+  <pre>
+   locator = Pyro.naming.NameServerLocator()
+   ns = locator.getNS()
+</pre><code>ns</code> now contains a reference. There are more advanced ways to get a reference to the NS, please read
+the chapter about the <a href="5-nameserver.html#locator">Name Server</a> to find out about them.
+
+  <h4>Create object instances</h4>The objects you create in the server that have to be remotely accessible can't be
+  created bare-bones. They have to be decorated with some logic to fool them into thinking it is a regular python
+  program that invokes their methods. This logic is incorporated in a special generic <em>object base class</em> that
+  is part of the Pyro core: <code>Pyro.core.ObjBase</code>. There are three ways to achieve this:
+
+  <ul>
+    <li>Derive a new class from both <code>Pyro.core.ObjBase</code> and your original class. The class body can be a
+    simple '<code>pass</code>'. If you want to add a custom <code>__init__</code> method, make sure you call the <code>
+      __init__</code> method of <code>Pyro.core.ObjBase</code> and of your own class, if it has one.
+      <pre>
+   class ObjectImpl(Pyro.core.ObjBase, test.MyClass):
+      def __init__(self):
+         Pyro.core.ObjBase.__init__(self)
+         test.MyClass.__init__(self)
+      ...
+   obj = ObjectImpl()
+    ... use obj ...
+</pre>
+    </li>
+
+    <li>Delegate Pattern. In this pattern you create two objects, and you tell one of them to delegate all calls to the
+    other. Instead of deriving from <code>Pyro.core.ObjBase</code> you just create that object and tell it to use your
+    own object as a <em>delegate</em>, by calling the <code>delegateTo</code> method.
+      <pre>
+   obj = Pyro.core.ObjBase()
+   myobj = MyClass()
+   obj.delegateTo(myobj)
+    ... use obj ...
+</pre>
+    </li>
+
+    <li>Direct inheritance: subclass your class directly from <code>Pyro.core.ObjBase</code>. This is the least hassle
+    but you have to change existing code if you want to make classes suitable for Pyro.
+      <pre>
+   class MyPyroObj(Pyro.core.ObjBase):
+      def __init__(self):
+         Pyro.core.ObjBase.__init__(self)
+         ...obj init here...
+       ...
+   obj = MyPyroObj()
+    ... use obj ...
+</pre>
+    </li>
+  </ul>For advanced purposes, there are two other base classes that you can use instead of <code>ObjBase</code>:
+
+  <dl>
+    <dt><code>Pyro.core.SynchronizedObjBase</code></dt>
+
+    <dd>Use this to make your Pyro object thread-safe; all (remote) method calls are automatically synchronized for
+    this object.</dd>
+
+    <dt><code>Pyro.core.CallbackObjBase</code></dt>
+
+    <dd>Use this for special <em>callback</em> objects that need to report errors also on the client, not only on the
+    server. For more information, please read about Callbacks in the <a href="7-features.html#callback">Features and
+    Guidelines</a> chapter.</dd>
+  </dl>
+
+  <h4><a name="connecting" id="connecting"></a>Connect object instances</h4>Ok, we're going nicely up to this point. We
+  have some objects that even already have gotten a unique ID (that's part of the logic <code>Pyro.core.ObjBase</code>
+  gives us). But Pyro still knows nothing about them. We have to let Pyro know we've created some objects and how they
+  are called. Only then can they be accessed by remote client programs. So let's connect our objects with the Pyro
+  Daemon we've created before:
+  <pre>
+   daemon.connect(obj,'our_object')
+</pre>
+  That done, the daemon has registered our object with the NS too (if you told it where to find the NS,
+  as we explained earlier: <code>daemon.useNameServer(ns)</code>). The NS will now have an entry in its
+  table that connects the name &quot;our_object&quot; to our specific object.<br>
+  Note 1: if you don't provide a name, your object is a so-called <em>transient</em> object. The daemon will not
+  register it with the Name Server. This is useful when you create new Pyro objects on the server that are not
+  full-blown objects but rather objects that are only accessible by the code that created them. Have a look at the
+  factory and Bank2 examples if this is not clear.<br>
+  Note 2: the <code>connect</code> method actually returns the URI that will identify this object. You can ignore this
+  if you don't want to use it immediately without having to consult the name service.<br>
+  Note 3: there is also a <code>connectPersistent</code> method that is used for a special purpose. Look
+  under the &quot;Automatic Rebinding&quot; topic in the &quot;Features and guidelines&quot; chapter for more
+  info.
+
+  <p>In contrast to the simple (flat) name shown above (&quot;our_object&quot;), Pyro's Name Server supports
+      a <a href=
+  "5-nameserver.html#naming">hierarchical object naming scheme</a>.</p>
+
+  <h4><a name="disconnecting" id="disconnecting"></a>Disconnecting object instances</h4>Usually you don't have to worry
+  about cleaning up, the daemon will cleanly remove any registered objects from the Name Server if it exits. (Note that
+  'persistently' connected objects are not removed automatically.) But sometimes it can be better to manually remove
+  any objects that you don't need any longer. Use the following method to do that:
+  <pre>
+   daemon.disconnect(obj)
+</pre>Just pass the Pyro object you want to remove from the Daemon (and the Name Server).
+
+  <h4>The Daemon handleRequest loop</h4>We're near the end of our server coding effort. The only thing left is the code
+  that sits in a loop and processes incoming requests. Fortunately most of that is handled by a single method in the
+  daemon. For many applications calling <code>daemon.requestLoop()</code> is enough. For finer control, you can give a
+  few arguments to the function:
+  <pre>
+requestLoop(condition, timeout, others, callback)
+</pre>All arguments are optional. The default is that <code>requestLoop</code> enters an endless loop waiting and
+handling Pyro requests. You can specify a <code>condition</code> callable object (for instance, a lambda function) that
+is evaluated each cycle of the loop to see if the loop should continue (the condition must evaluate to 1). The
+<code>timeout</code> can be used to adjust the timeout between loop cycles (default=3 seconds). The
+<code>requestLoop</code> doesn't use the timeout (it only returns when the optional loop condition is no longer true),
+the timeout is simply passed to the underlying <code>handleRequests</code> call. This is required on some platforms
+(windows) to cleanly handle break signals like ^C. The <code>others</code> and <code>callbacks</code> can be used to
+add your own socket or file objects to the request handling loop, and act on them if they trigger. For more details,
+see the paragraph below.
+
+  <p>For those that like to have more control over the request handling loop, there is also
+  <code>handleRequests</code>. Usually your loop will look something like this:</p>
+  <pre>
+   while continueLoop:
+      daemon.handleRequests(3.0)
+      ... do something when a timeout occured ...
+</pre>The timeout value in this example is three seconds. The call to <code>handleRequests</code> returns when the
+timeout period has passed, or when at least one request was processed. You could use '<code>0</code>' for timeout, but
+this means the call returns directly if no requests are pending. If you want infinite timeout, use '<code>None</code>'.
+You can also provide additional objects the daemon should wait on (multiplexing), to avoid having to split your program
+into multiple threads. You pass those objects, including a special callback function, as follows:
+  <pre>
+   daemon.handleRequests(timeout, [obj1,obj2,obj3], callback_func)
+</pre>The second argument is a list of objects suitable for passing as <em>ins</em> list to the <code>select</code>
+system call. The last argument is a callback function. This function will be called when one of the objects in your
+list triggers. The function is called with one argument: the list of ready objects. For more information about this
+multiplexing issue, see the manual page about the Un*x <code>select</code> system call.
+
+  <h4>Including the Pyro Daemon in another (external) event loop</h4>Some applications already have their own event
+  loop. If it is <code>select</code>-based, or can process additional sockets to wait on, you can also use your
+  application's event loop instead of the Daemon's <code>requestLoop</code>. Do this by querying the Daemon for a list
+  of active socket objects that it is currently listening on, and pass every socket in that list to your external event
+  loop. The Daemon has a method <code>getServerSockets()</code> that returns this list of <code>socket</code> objects.
+  This list changes so you have to call it every time you enter the 'foreign' event loop. When your code returns from
+  the 'foreign' event loop, check if one of Pyro's sockets has an event, and if so, call the regular
+  <code>handleRequests()</code>. Pyro will then process every event that's pending for it. An example:
+  <pre>
+while some_condition :
+        socks=daemon.getServerSockets()
+        ins,outs,exs=select.select(socks,[],[],2)   # 'foreign' event loop
+        for s in socks:
+                if s in ins:
+                        daemon.handleRequests()
+                        break    # no need to continue with the for loop
+</pre>
+  Have a look at the &quot;AllInOne&quot; example. It shows two approaches of starting various Pyro servers
+  from within a single program and then using a custom event loop to wait for incoming requests. That
+  code is easily adapted to integrate Pyro in a GUI toolkit's event loop, for instance.
+
+  <h4>Stopping the server, cleaning up</h4>To signal the Daemon that it should stop its requestloop, you can call
+  <code>daemon.shutdown()</code> or send the process a break signal (ctrl-C). This issues an asynchronous request to
+  the Daemon to terminate the request loop once any processing that is currently going on, is finished (it can still
+  take a while before the requestloop is actually stopped). Once the loop stops, and all references to the daemon
+  object are gone, it is garbage collected and Python tries to run the finalizer code that nicely unregisters any
+  connected objects (so their names are removed from the Name Server unless you're using persistent mode).
+
+  <p>However this may not work in all cases, or perhaps you want to control it explicitly. If you want to explicitly
+  tell the daemon to unregister its objects and shut down, you should use <code>daemon.shutdown(True)</code>. So your
+  code might look like this:</p>
+  <pre>
+ &hellip;
+daemon.connect( &hellip; )
+try:
+    daemon.requestLoop()
+finally:
+    daemon.shutdown(True)
+    # at this moment, the objects have been unregistered
+ &hellip;
+</pre>
+
+  <p>If you're not doing any more processing in your server after the requestloop, it is usually not necessary to add
+  this explicit cleanup logic. However, if the server is aborted in a 'hard' way (terminated, crash) instead of a
+  normal shutdown or ctrl-C signal, Python may not execute the finalizer code and your objects are still registered in
+  the NS. There is not much you can do about this; even the explicit shutdown code above doesn't help (because it is
+  not executed as well!). A solution is to change the registration of the objects: if you encounter errors because the
+  name already exists in the NS, just unregister the old name and re-register.</p>
+
+  <p><em>This concludes our server. Full listings can be found in the <a href="8-example.html">Example
+  chapter</a>.</em></p>
+
+  <h3><a name="client" id="client"></a>Step 5: Writing the client</h3>
+
+  <h4>Initialization</h4>You should initialize Pyro before using it in your client program. This is done by calling
+  <pre>
+   Pyro.core.initClient()
+</pre>If you provide the argument 'banner=1', a short version message is printed on the standard
+output. In contrast to the server initialization (see above), this method does <em>not</em> check the availability of
+the <code>PYRO_STORAGE</code> directory. This means that you can run Pyro clients on a read-only system, as long as
+they don't have to write something (log!) to <code>PYRO_STORAGE</code>!
+
+  <p>If the tracelevel is not zero, a startup message is written to the log. This message shows the active
+  configuration options.</p>
+
+  <p>It is not strictly required to call <code>Pyro.core.initClient()</code>. If you don't call it, Pyro will
+  initialise itself automatically.</p>
+
+  <h4>Find the Name Server</h4>This part is identical to the way this is done in the server. See above. Let's assume
+  that the variable <code>ns</code> now contains the proxy for the NS.
+
+  <h4>Find object URIs</h4>There are essentially three ways to find an object URI by name:
+
+  <ul>
+    <li>Query the NS. This is the best way to go. You ask the NS to give you the URI for the object with
+        the right name (&quot;my_object&quot; in this example):
+        <pre>
+   uri = ns.resolve('my_object')
+</pre>
+    </li>
+
+    <li>Read it from a special file that was written by the object. This is like what is done in the <a href=
+    "#server">previous paragraph</a>, about finding the NameServer. Be sure to convert the string you read from the
+    file to a real <code>PyroURI</code> object before you use it. Just pass it to the constructur of
+    <code>PyroURI</code> and you'll be fine.</li>
+
+    <li>Use the special <code>PYRONAME://</code> or <code>PYROLOC://</code> URI strings. The first is a shortcut to the
+    Name Server, the second bypasses the Name Server completely. More info is in the <a href=
+    "5-nameserver.html#pyroname">Name Server chapter</a>.</li>
+  </ul>
+
+  <h4>Create a proxy</h4>You now have a URI in your posession. But you need an object to call methods on. So you create
+  a proxy object for the URI.
+  <pre>
+   obj = Pyro.core.getProxyForURI(uri)     # get a dynamic proxy
+   obj = Pyro.core.getAttrProxyForURI(uri) # get a dyn proxy with attribute support
+
+   # if you're sure that the URI is a real PyroURI object, you can do this:
+   obj = uri.getProxy()                    # get a dynamic proxy directly from the URI  
+   obj = uri.getAttrProxy()                # same, but with attribute support
+</pre>If you're using attribute proxies, be aware of their <a href="2-concepts.html#proxy">properties and
+limitations</a>.
+
+  <h4>Remote method invocations</h4>And now what we've all been waiting for: calling remote methods. This is what's
+  Pyro's all about: there is <em>no difference</em> in calling a remote method or calling a method on a regular (local)
+  Python object. Just go on and write:
+  <pre>
+   obj.method(arg1, arg2)
+   print obj.getName()
+   a = obj.answerQuestion('What is the meaning of life?')
+   # the following statements only work with a attribute-capable proxy:
+   attrib = obj.attrib
+   obj.sum = obj.sum+1
+</pre>or whatever methods your objects provide. The only thing to keep in mind is that you need a <em>proxy</em> object
+whose methods you call.
+
+  <p>This concludes our client. Full listings can be found in the <a href="8-example.html">Example chapter</a>. For
+  information on using Pyro's logging/tracing facility, see <a href="#runtimectrl">Runtime control and Logging</a>,
+  below.</p>
+
+  <h3><a name="runtime" id="runtime"></a>Steps 6, 7 and 8: Runtime setup</h3>This part is a no-brainer, really. There
+  may be some extra configuration necessary when you're running Pyro behind a firewall, and want to access it from
+  outside the firewall, or have machines with dynamic IP addresses. You can find more information about this in the
+  <a href="7-features.html">Features and Guidelines</a> chapter. Otherwise it's simple:
+
+  <h4>Starting the Name Server</h4>A Pyro system needs at least one running Name Server. So, if it's not already
+  running, start one using the <code>ns</code> utility. See <a href="#scripts">Pyro script tools</a>. After starting it
+  will print some information and then the Name Server sits in a loop waiting for requests:
+  <pre>
+irmen@atlantis:~ &gt; projects/Pyro/bin/ns
+*** Pyro Name Server ***
+Pyro Server Initialized. Using Pyro V2.4
+Will accept shutdown requests.
+URI written to: /home/irmen/Pyro_NS_URI
+URI is: PYRO://10.0.0.150:9090/0a000096-08620ada-6697d564-62110a9f
+Name Server started.  
+</pre>The NS writes its URI to a file, as it says. This file can be read by other programs, and this is another -very
+portable- way to discover the NS. Usually you'll want to use the default mechanism from the
+<code>NameServerLocator</code> (automatic discovery using broadcasting). This is easier. But if your network doesn't
+support broadcasting, or the NS can't be reached by a broadcast (because it sits on another subnet, for instance), you
+<em>have</em> to use another method to reach the NS.
+
+  <h4>Running the server</h4>Just start the python module as you do normally. Before starting, you may want to set
+  certain environment variables to change some of Pyro's configuration items. After starting, your server will usually
+  sit in a loop waiting for incoming requests (method calls, actually).
+
+  <h4>Running the client</h4>Just start the python module as you do normally. Before starting, you may want to set
+  certain environment variables to change some of Pyro's configuration items.
+
+  <h3><a name="runtimectrl" id="runtimectrl"></a>Runtime control and Logging</h3>
+
+  <h4>Controlling the Name Server</h4>You might want to control the NS while it's running. For instance, to inspect the
+  current registered names or to remove an old name, or to register a new one by hand. You use the <code>pyro-nsc</code>
+  command-line utility or the <code>pyro-xnsc</code> graphical tool for this purpose, see <a href="#scripts">Pyro script
+  tools</a>.
+
+  <h4>Controlling Pyro</h4>Pyro has many configuration items that can be changed also during runtime. You might want to
+  set the tracelevel to 3 during a special function, for instance. See the <a href="3-install.html">Installation and
+  Configuration</a> chapter for more information.
+
+  <h4>Tracing (logging)</h4>Pyro has two distinct logs: the system log and the user log. The system log is used by Pyro
+  itself. You can use it in your own code too, but generally it's better to use the user log.
+
+  <ul>
+    <li><strong>System Log</strong><br>
+    The system log is implemented by the <code>Pyro.util.Log</code> object, which is an instance of
+    <code>Pyro.util.SystemLogger</code>. System log tracelevel is configured using the <code>PYRO_TRACELEVEL</code>
+    config item, the logfile location is configured using the <code>PYRO_LOGFILE</code> config item.</li>
+
+    <li><strong>User log</strong><br>
+    You should create your own user log object by creating a <code>Pyro.util.UserLogger</code> instance. User log
+    tracelevel is configured using the <code>PYRO_USER_TRACELEVEL</code> config item, the user logfile location is
+    configured using the <code>PYRO_USER_LOGFILE</code> config item.</li>
+
+    <li>
+      <strong>Using the Logger object: logging entries</strong><br>
+      The logger class provides four methods:
+
+      <ul>
+        <li><code>msg(source, *args)</code> - log a simple message (note). <code>source</code> is a string that
+        identifies the source of the log entry, after that, any argument may follow to be printed in the logfile.</li>
+
+        <li><code>error(source, *args)</code> - log an error. <code>source</code> is a string that identifies the
+        source of the log entry, after that, any argument may follow to be printed in the logfile.</li>
+
+        <li><code>warn(source, *args)</code> - log a warning. <code>source</code> is a string that identifies the
+        source of the log entry, after that, any argument may follow to be printed in the logfile.</li>
+
+        <li><code>raw(string)</code> - log a string (unformatted). <code>string</code> is the string to write to the
+        logfile. This logging is done unconditionally, the tracelevel setting has no influence here.</li>
+      </ul>Logfile entries have the following format:<br>
+      &quot;<code>2002-01-16 16:45:02 [5884:MainThread] ** ERR! ** NameServerLocator ** Name Server not
+      responding</code>&quot;<br>
+      (a date and timestamp, process ID:thread name, then &quot;NOTE&quot;, &quot;WARN&quot; or &quot;ERR!&quot;,
+      indicating if this was a simple message, a warning or an error. After that, the source of the log
+      entry - this can be any string but should be meaningful for the developer. After that, the actual
+      log message. All elements are separated by two asterisks). Each log entry is one line in the logfile.
+      Entries written by the <code>raw</code> method can have any format,
+      including multiple lines.
+    </li>
+  </ul>
+
+  <h3><a name="notes" id="notes"></a>Last Notes</h3>Please be sure to read the chapter on <a href=
+  "3-install.html">Configuration</a>, the <a href="5-nameserver.html">Name Server</a> and the chapter about <a href=
+  "7-features.html">Pyro's Features and Guidelines</a>.
+
+  <p>These chapters contain invaluable information about the more detailed aspects and possibilities of Pyro.</p>
+
+  <p>Also have a look at the extensions package <code>Pyro.ext</code>, it contains two modules that provide
+      extremely easy remoting for your programs. Take a look at the &quot;quickstart&quot; and &quot;quickstart-noNS&quot;
+      examples for more details.</p>
+  <div class="nav">
+  <hr>
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="3-install.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "5-nameserver.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table></div>
+</body>
+</html>

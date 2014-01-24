@@ -1,0 +1,569 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<!-- $Id: 10-errors.html,v 2.30.2.1 2008/05/17 10:51:56 irmen Exp $ -->
+<head>
+  <title>PYRO - Errors and Troubleshooting</title>
+  <link rel="stylesheet" type="text/css" href="pyromanual_print.css" media="print">
+  <link rel="stylesheet" type="text/css" href="pyromanual.css" media="screen">
+</head>
+
+<body>
+  <div class="nav">
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="9-security.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "11-implementation.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table>
+<hr></div>
+
+  <h2><u>10. Errors and Troubleshooting</u></h2>The <a href="#errors">Pyro Errors</a> section describes the various
+  errors that can occur when using Pyro. It only describes Pyro's custom exceptions - other Python exceptions may occur
+  due to other runtime problems.
+
+  <p>The <a href="#shoot">Troubleshooting</a> section provides various hints and tips when you can't get things to work
+  as expected.</p>
+
+  <h3><a name="errors" id="errors"></a>Pyro Errors</h3>
+
+  <h4>Pyro Exception Hierarchy</h4>
+
+  <ul>
+    <li>Exception
+
+      <ul>
+        <li>PyroError
+
+          <ul>
+            <li>URIError</li>
+
+            <li>DaemonError</li>
+
+            <li>NamingError</li>
+
+            <li>NoModuleError</li>
+
+            <li>ProtocolError
+
+              <ul>
+                <li>ConnectionClosedError
+
+                  <ul>
+                    <li>TimeoutError</li>
+                  </ul>
+                </li>
+
+                <li>ConnectionDeniedError</li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>Pyro's exception extensions</h3>Pyro transports a remote exception (and traceback) to the client, where it is
+  raised again as if it occured locally. Pyro provides some powerful debugging possibilities
+  (also see <a href="7-features.html#exc">Dealing with Exceptions</a>):
+
+  <ul>
+    <li>Providing the remote exception traceback (the actual error that occurred in the Pyro object)
+    	as an attribute on the local exception object.
+    	You can print this using the <code>util.getPyroTraceback</code> function for instance.</li>
+
+    <li>Printing a very detailed traceback, including the names and values of current local variables at the moment of
+    the exception. See the <code>PYRO_DETAILED_TRACEBACK</code> config item. This one is disabled
+    by default because of security reasons.</li>
+  </ul>
+
+  <h3>What error occurs where and when?</h3>
+
+  <h4>Initialization</h4><strong><code>OSError</code></strong>-- is raised when Pyro needs but can't create or open the
+  storage directory specified by <code>PYRO_STORAGE</code>.
+
+  <h4>Name Server</h4>
+  <strong><code>NamingError</code></strong>-- The Name Server raises a <code>NamingError</code>
+  exception (raised by the remote NS object) if an error condition occurs. It usually has a detailed
+  error description in the <code>args</code> attribute. That is a tuple of one or two elements. The first
+  element is the error string (such as &quot;name not found&quot;) and the second (if present) is the offending
+  name.
+
+  <p><strong><code>PyroError</code></strong>-- The <code>NameServerLocator</code> raises <code>PyroError</code> &quot;Name
+  Server not responding&quot; if it failed to discover the Name Server (via the <code>getNS</code> method).</p>
+
+  <p>Also, the <code>PYROAdapter</code> raises <code>NoModuleError</code> &quot;No module named XYZ&quot; if
+      it cannot import a Python module. See below in the table.</p>
+
+  <p>Also, the startup code in <code>configuration.py</code> raises <code>PyroError</code> &quot;Error reading
+      config file&quot;
+  if Pyro's configuration file cannot be read.</p>
+
+  <h4>Pyro Core</h4>
+  <strong><code>URIError</code></strong>-- The <code>PyroURI</code> object raises
+  <code>URIError</code> &quot;illegal URI format&quot; when you try to create a <code>PyroURI</code> object
+  from an illegal URI. Also &quot;unknown host&quot; means that you supplied an unknown hostname or IP address
+  for the URI.
+
+  <p><strong><code>DaemonError</code></strong>-- The <code>Daemon</code> object raises <code>DaemonError</code>
+  &quot;Couldn't start Pyro daemon&quot; if it was unable to start. This usually means that the required network
+  port (socket) is temporarily unavailable because another Pyro daemon is already running on it.</p>
+
+  <h4>PYRO Protocol adapter</h4>Various exceptions may be raised by the PYRO protocol code:
+
+  <table>
+    <tr>
+      <th>Exception</th>
+
+      <th>Error string</th>
+
+      <th>raised by</th>
+
+      <th>description</th>
+    </tr>
+
+    <tr>
+      <td><code>ConnectionClosedError</code></td>
+
+      <td>connection lost</td>
+
+      <td>receive code</td>
+
+      <td>The network connection was lost while receiving data.</td>
+    </tr>
+
+    <tr>
+      <td><code>ConnectionClosedError</code></td>
+
+      <td>connection lost</td>
+
+      <td>send code</td>
+
+      <td>The network connection was lost while sending data.</td>
+    </tr>
+
+    <tr>
+      <td><code>ProtocolError</code></td>
+
+      <td>incompatible protocol in URI</td>
+
+      <td><code>bindToURI</code> method of <code>PYROAdapter</code></td>
+
+      <td>You supplied an incompatible protocol ID. Use 'PYRO'.</td>
+    </tr>
+
+    <tr>
+      <td><code>ProtocolError</code></td>
+
+      <td>connection failed</td>
+
+      <td><code>bindToURI</code> method of <code>PYROAdapter</code></td>
+
+      <td>Network problems caused the connection to fail. Also the Pyro server may have crashed.</td>
+    </tr>
+
+    <tr>
+      <td><code>ProtocolError</code></td>
+
+      <td>invalid header</td>
+
+      <td>receive code</td>
+
+      <td>A message with an invalid header has been received.</td>
+    </tr>
+
+    <tr>
+      <td><code>ProtocolError</code></td>
+
+      <td>incompatible version</td>
+
+      <td>receive code</td>
+
+      <td>A message from an incompatible Pyro version has been received.</td>
+    </tr>
+
+    <tr>
+      <td><code>ProtocolError</code></td>
+
+      <td>unsupported protocol</td>
+
+      <td><code>getProtocolAdapter</code></td>
+
+      <td>You tried to get a protocol adapter for an unsupported protocol. Currently only the 'PYRO' protocol is
+      supported.</td>
+    </tr>
+
+    <tr>
+      <td><code>ProtocolError</code></td>
+
+      <td>compression not supported</td>
+
+      <td>receive code</td>
+
+      <td>An incoming message used compression, which this Pyro setup doesn't support (most likely you don't have the
+      <code>zlib</code> module).</td>
+    </tr>
+
+    <tr>
+      <td><code>ProtocolError</code></td>
+
+      <td>unknown object ID</td>
+
+      <td>receive code</td>
+
+      <td>Incoming method call for an unknown object (i.e. the object ID was not found in the Daemon's list of active
+      objects).</td>
+    </tr>
+
+    <tr>
+      <td><code>NoModuleError</code></td>
+
+      <td>No module named XYZ</td>
+
+      <td>remote method call code</td>
+
+      <td>The Pyro server cannot import the Python module XYZ that contains the code for an object that was passed in a
+      remote call. If you don't use mobile code, the Pyro server must have all <code>.py</code> files available.</td>
+    </tr>
+
+    <tr>
+      <td><code>PyroError</code></td>
+
+      <td>attempt to supply code denied</td>
+
+      <td>remote method call code</td>
+
+      <td>Either a client tried to submit code to a server that hasn't enabled mobile code, or the server had enabled
+      mobile code but the codeValidator refused to accept it.</td>
+    </tr>
+
+    <tr>
+      <td><code>ConnectionDeniedError</code></td>
+
+      <td>unspecified reason</td>
+
+      <td><code>bindToURI</code> method of <code>PYROAdapter</code></td>
+
+      <td>No specific reason given for denying the connection</td>
+    </tr>
+
+    <tr>
+      <td><code>ConnectionDeniedError</code></td>
+
+      <td>server too busy</td>
+
+      <td><code>bindToURI</code> method of <code>PYROAdapter</code></td>
+
+      <td>The Pyro server has too many connections at this time so your request for another connection was denied.</td>
+    </tr>
+
+    <tr>
+      <td><code>ConnectionDeniedError</code></td>
+
+      <td>host blocked</td>
+
+      <td><code>bindToURI</code> method of <code>PYROAdapter</code></td>
+
+      <td>The server blocks your host/IP address.</td>
+    </tr>
+
+    <tr>
+      <td><code>ConnectionDeniedError</code></td>
+
+      <td>security reasons</td>
+
+      <td><code>bindToURI</code> method of <code>PYROAdapter</code></td>
+
+      <td>General security issue prevented a connection.</td>
+    </tr>
+
+    <tr>
+      <td><code>TimeoutError</code></td>
+
+      <td>connection timeout</td>
+
+      <td>while transferring data in PyroAdapter</td>
+
+      <td>The communication took longer that the timeout perioud that was specified. (default: off)</td>
+    </tr>
+  </table>
+
+  <h4>Util</h4>
+  <strong><code>KeyError</code></strong>-- The <code>ArgParser</code> will raise <code>KeyError</code> &quot;no
+  such option&quot; if you try to <code>getOpt</code> an option that has not been detected in the option
+  string and you have not supplied a default value to <code>getOpt</code> (otherwise that default value
+  is returned).
+
+  <h3><a name="shoot" id="shoot"></a>Troubleshooting</h3>
+  <p><strong>Online Pyro troubleshooting wiki:</strong> I've put up
+  some wiki (interactive) pages about Pyro. One of them is this one: <a href=
+  "http://www.razorvine.net/python/PyroTroubleshooting">Pyro Troubleshooting</a>. Have a look there if you can't find
+  an answer below. (The other pages can be found by going to <a href="http://www.razorvine.net/python/FrontPage">the
+front page</a>).</p>
+<p><strong>Using IronPython or Jython?</strong> Each of these has its own possible issues (when compared to standard CPython).
+	If you are using one of these instead of standard CPython, you may experience problems or unexpected behaviour that
+	are not mentioned elsewhere in this chapter or manual.
+	Because both of them are a bit of a moving target, specific issues related to them are 
+	discussed on the wiki pages: 
+	<a href="http://www.razorvine.net/python/PyroAndJython">Jython</a> ;
+	<a href="http://www.razorvine.net/python/PyroAndIronPython">IronPython</a> .
+	</p>
+  <br>
+
+  <table>
+    <tr>
+      <th>Problem</th>
+
+      <th>Possible cause</th>
+
+      <th>Hint/tip</th>
+    </tr>
+
+    <tr>
+      <td>The Name Server or my own Pyro server refuses to start, aborts with <code>DaemonError</code></td>
+
+      <td>The daemon can't set up the network port (socket), probably because another daemon is already running, or
+      another process occupies the resource.</td>
+
+      <td>
+        Wait a little while and try again (sometimes it takes a while for resources to become available again). If this
+        doesn't work, find the other daemon that is probably running and shut it down, or specify another port for the
+        new daemon. Sorry, but your new process can't yet use the daemon of another running process - perhaps in a
+        future Pyro version.
+
+        <p>It could also be that there is something special about your network setup, like: multiple
+            NICs / IP addresses on a single host. Please read the &quot;Features and Guidelines&quot; chapter.</p>
+      </td>
+    </tr>
+
+    <tr>
+      <td>Name Server acts weird with names or groups</td>
+
+      <td>not using built-in static NS proxy</td>
+
+      <td>always use the <code>Pyro.naming.NameServerProxy</code> returned by the Name Server Locator.</td>
+    </tr>
+
+    <tr>
+      <td>Pyro refuses to initialize, aborts with <code>IOError</code> and/or things saying 'permission denied' or
+      similar</td>
+
+      <td>You probably specified a wrong location for Pyro's storage directory and/or logfiles. Perhaps you don't have
+      permission to write in those locations.</td>
+
+      <td>Fix those locations by changing the configuration items. Make sure you have permission to write to those
+      locations. Usually <code>PYRO_STORAGE</code> must be changed to point to a correct directory.</td>
+    </tr>
+
+    <tr>
+      <td>My code can't find the Name Server, it aborts with &quot;Name Server not responding&quot;</td>
+
+      <td>The Pyro Name Server is not running or it can't be discovered automatically. The latter may be the case if
+      your network doesn't support broadcasts or if the NS is running on a different subnet that cannot be reached by a
+      broadcast.</td>
+
+      <td>Start the NS if it's not running. If the problem persists, you have to help the
+      <code>NameServerLocator</code> by specifying the host and perhaps even the port number where the NS is running.
+      You can also try to obtain the NS' URI string and create a proxy directly from this string, bypassing the
+      <code>NameServerLocator</code>.</td>
+    </tr>
+
+    <tr>
+      <td>Still can't contact Name Server or my Pyro objects, but NS is active. Log has warning about local address
+      127.0.0.1.</td>
+
+      <td>NS or daemon binds on loopback address due to faulty network config.</td>
+
+      <td>Often it's wrong if your hostname resolves to 127.0.0.1 (the loopback address) - your servers are invisible
+      from other hosts if they bind on this address. This usually isn't Pyro's fault, but an error in your
+      network/DNS/resolv configuration or your hosts file. (Pyro warns you about this, but continues, because sometimes
+      it <em>is</em> correct.)</td>
+    </tr>
+
+    <tr>
+      <td>'name not absolute' errors after changing default namespace group.</td>
+
+      <td>The default group name for the <code>PYRO_NS_DEFAULTGROUP</code> config item <em>must</em> be an absolute
+      name (starting with the root char).</td>
+
+      <td>Change it to an absolute name.</td>
+    </tr>
+
+    <tr>
+      <td>Client can't bind to URI or find URI in Name Server. NS is running ok, server is running ok.</td>
+
+      <td>The URI is not registered correctly in the Name Server.</td>
+
+      <td>Make sure that the client accesses the correct Name Server (the one that the server used to register the
+      object), especially if you're running multiple NS. Also make sure that the client uses the correct URI.</td>
+    </tr>
+
+    <tr>
+      <td>Client problems when accessing Pyro object attributes, client prints stuff like <code>&lt;bound method
+      DynamicProxy._invokePYRO of DynamicProxy ... &gt;</code> instead of attribute value</td>
+
+      <td>You are using regular dynamic proxy</td>
+
+      <td>Use attribute enabled proxy; see <code>getAttrProxyForURI</code>.</td>
+    </tr>
+
+    <tr>
+      <td>Client crashes with &quot;No module named ...&quot; or similar when accessing attributes</td>
+
+      <td>The attribute object is an instance of a class that cannot be found/imported on the client</td>
+
+      <td>make the module that contains every attribute class available on the client, or write getters.</td>
+    </tr>
+
+    <tr>
+      <td>Pyro doesn't use my configuration settings!</td>
+
+      <td>Other settings overrule your settings.</td>
+
+      <td>Check if there is an environment variable that overrules your config file, or perhaps even a setting in your
+      code..</td>
+    </tr>
+
+    <tr>
+      <td>Pyro object doesn't initialise correctly</td>
+
+      <td>Pyro objects cannot have a remote __init__ method</td>
+
+      <td>Use explicit remote initialization by using a custom init method..</td>
+    </tr>
+
+    <tr>
+      <td>General network errors when using firewall or multiple network adapters (can't find NS, Pyro uses wrong IP
+      address in URIs)</td>
+
+      <td>Firewalls need special treatment</td>
+
+      <td>Read <a href="7-features.html#dnsip">the chapter Features and Guidelines</a>.</td>
+    </tr>
+
+    <tr>
+      <td>Client cannot connect anymore after restarting the server</td>
+
+      <td>Pyro URIs change every time the server is restarted, and the client uses an old URI</td>
+
+      <td>update the URI on the client, or use the Name Server, or use Persistent Naming.</td>
+    </tr>
+
+    <tr>
+      <td>Deadlock (Pyro freezes)</td>
+
+      <td>Callback waits for other object (occurs in 'conversation' or 'looping' invocation)</td>
+
+      <td>Make sure your Daemon is running in multithreaded mode. Also consider using Oneway invocations or the Event
+      Server.</td>
+    </tr>
+
+    <tr>
+      <td>Pyro Object created on server and returned to client doesn't work</td>
+
+      <td>You are probably not returning a proxy but the object itself.</td>
+
+      <td>Return a proxy instead: <code>return Obj.getAttrProxy()</code></td>
+    </tr>
+
+    <tr>
+      <td>When using threads: strange PicklingError, ProtocolError, or other socket related errors sometimes occur</td>
+
+      <td>You are probably using a single Pyro proxy object from different threads, that is not allowed</td>
+
+      <td>Every thread must have its own proxy object, or you have to use thread-locking around the remote calls.
+      Probably the easiest is to just look up the required object from inside every thread, or use
+      <code>copy.copy(obj)</code> to clone an already obtained proxy.</td>
+    </tr>
+
+    <tr>
+      <td>PicklingError or TypeError: can't pickle .... objects</td>
+
+      <td>You're passing an unpickleable object to Pyro</td>
+
+      <td>Remove any nonpickleable objects. You might want to try custom <code>__getstate__</code> and
+      <code>__setstate__</code> methods.</td>
+    </tr>
+
+    <tr>
+      <td>Other PicklingErrors or 'invalid load key' or other vague errors</td>
+
+      <td>Incompatilbe Python version or version mismatch</td>
+
+      <td>You need at least Python 2.3 or newer, and you need the same major Python version everywhere. Otherwise the
+      pickle protocol datastream is incompatible.</td>
+    </tr>
+
+    <tr>
+      <td>Syntax Error exception when using mobile code</td>
+
+      <td>Pyro couldn't compile the downloaded code</td>
+
+      <td>It could be that you have old *.pyc or *.pyo files around from a different Python version. Remove these
+      files. If not, your source has a true syntax error in it, try to import it standalone and see if it works.</td>
+    </tr>
+
+    <tr>
+      <td>PyroError 'server wanted a non-existing module' when using mobile code</td>
+
+      <td>You're probably importing other modules from within your mobile agent module, using a relative package/module
+      name</td>
+
+      <td>When you import other modules from your mobile object, you have to use the fully qualified module name. Using
+      a package local module name doesn't work. See the agent3 example.</td>
+    </tr>
+
+    <tr>
+      <td>Other problem not mentioned here</td>
+
+      <td>Your code probably breaks a Pyro rule</td>
+
+      <td>read the <a href="7-features.html#rules">the chapter Features and Guidelines</a>.</td>
+    </tr>
+
+    <tr>
+      <td>SSL problems</td>
+
+      <td>?</td>
+
+      <td>Sorry, I don't know much about SSL. Ask on Usenet or the mailing list.</td>
+    </tr>
+
+    <tr>
+      <td>Trouble using <code>object.attr.subattr.subsubattr</code> or calling 'nested' methods like
+      <code>obj.address.getStreet()</code></td>
+
+      <td>All classes that are used for the nested attributes must be available on the client.</td>
+
+      <td>See the &quot;attributes&quot; example.</td>
+    </tr>
+
+    <tr>
+      <td>Troubles with floating point numbers such as INF or NaN.</td>
+
+      <td>Python's use of these numbers isn't standardized, and they cannot be pickled/unpickled.</td>
+
+      <td>Python 2.5 contains some fixes for this issue. Might not work on Windows though.</td>
+    </tr>
+
+    <tr>
+      <td>Pyro crashes.</td>
+
+      <td>Most likely a bug.</td>
+
+      <td>Contact <a href="mailto:irmen@users.sourceforge.net">me</a>.</td>
+    </tr>
+  </table>
+  <div class="nav">
+  <hr>
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="9-security.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "11-implementation.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table></div>
+</body>
+</html>

@@ -1,0 +1,255 @@
+.LIB TT 
+*DEVICE 1
+.param dtoxp_n_10_sp = 0.000000e+000
+.param dwint_n_10_sp = 0.000000e+000
+.param dllpe0_n_10_sp = 0.000000e+000
+.param dxl_n_10_sp = 0.000000e+000
+.param drdsw_n_10_sp = 0.000000e+000
+.param dcgdo_n_10_sp = 0.000000e+000
+.param dcgsl_n_10_sp = 0.000000e+000
+.param dcf_n_10_sp = 0.000000e+000
+.param dcjs_n_10_sp = 0.000000e+000
+.param dcjsws_n_10_sp = 0.000000e+000
+.param dcjswgs_n_10_sp = 0.000000e+000
+.param dtoxe_n_10_sp = 0.000000e+000
+.param dvth0_n_10_sp = 0.000000e+000
+.param dcgso_n_10_sp = 0.000000e+000
+.param dvoffl_n_10_sp = 0.000000e+000
+.param dcgdl_n_10_sp = 0.000000e+000
+.param dpvth0_n_10_sp = 0.000000e+000
+.param dlpe0_n_10_sp = 0.000000e+000
+.param dxw_n_10_sp = 0.000000e+000
+.param dk3_n_10_sp = 0.000000e+000
+.param dwwl_n_10_sp = 0.000000e+000
+
+*DEVICE 2
+.param dwwl_p_10_sp = 0.000000e+000
+.param dtoxp_p_10_sp = 0.000000e+000
+.param dwint_p_10_sp = 0.000000e+000
+.param dllpe0_p_10_sp = 0.000000e+000
+.param dxl_p_10_sp = 0.000000e+000
+.param drdsw_p_10_sp = 0.000000e+000
+.param dcgdo_p_10_sp = 0.000000e+000
+.param dcgsl_p_10_sp = 0.000000e+000
+.param dcf_p_10_sp = 0.000000e+000
+.param dcjsws_p_10_sp = 0.000000e+000
+.param dtoxe_p_10_sp = 0.000000e+000
+.param dcjs_p_10_sp = 0.000000e+000
+.param dcjswgs_p_10_sp = 0.000000e+000
+.param dvth0_p_10_sp = 0.000000e+000
+.param du0_p_10_sp = 0.000000e+000
+.param dcgso_p_10_sp = 0.000000e+000
+.param dvoffl_p_10_sp = 0.000000e+000
+.param dcgdl_p_10_sp = 0.000000e+000
+.param dpvth0_p_10_sp = 0.000000e+000
+.param dxw_p_10_sp = 0.000000e+000
+.param dk3_p_10_sp = 0.000000e+000
+.param dlpe0_p_10_sp = 0.000000e+000
+
+.include 'L90_SP10_V051.mdl'
+.ENDL TT 
+
+.LIB SS 
+*DEVICE 1
+.param dtoxp_n_10_sp = 1.000000e-010
+.param dwint_n_10_sp = 2.000000e-009
+.param dllpe0_n_10_sp = 1.400000e-009
+.param dxl_n_10_sp = 1.302000e-009
+.param drdsw_n_10_sp = 1.700000e+001
+.param dcgdo_n_10_sp = -5.000000e-012
+.param dcgsl_n_10_sp = -2.200000e-011
+.param dcf_n_10_sp = -9.260000e-012
+.param dcjs_n_10_sp = 1.070000e-004
+.param dcjsws_n_10_sp = 1.260000e-011
+.param dcjswgs_n_10_sp = 2.310000e-011
+.param dtoxe_n_10_sp = 1.000000e-010
+.param dvth0_n_10_sp = 3.300000e-002
+.param dcgso_n_10_sp = -5.000000e-012
+.param dvoffl_n_10_sp = 4.500000e-010
+.param dcgdl_n_10_sp = -2.200000e-011
+.param dpvth0_n_10_sp = 1.700000e-004
+.param dlpe0_n_10_sp = 0.000000e+000
+.param dxw_n_10_sp = -5.000000e-009
+.param dk3_n_10_sp = 2.200000e+000
+.param dwwl_n_10_sp = 4.000000e-023
+
+*DEVICE 2
+.param dwwl_p_10_sp = 5.720000e-023
+.param dtoxp_p_10_sp = 1.000000e-010
+.param dwint_p_10_sp = 2.500000e-009
+.param dllpe0_p_10_sp = 2.600000e-009
+.param dxl_p_10_sp = 1.000000e-009
+.param drdsw_p_10_sp = 1.000000e+001
+.param dcgdo_p_10_sp = -4.200000e-012
+.param dcgsl_p_10_sp = -2.000000e-011
+.param dcf_p_10_sp = -9.080000e-012
+.param dcjsws_p_10_sp = 1.290000e-011
+.param dtoxe_p_10_sp = 1.000000e-010
+.param dcjs_p_10_sp = 1.260000e-004
+.param dcjswgs_p_10_sp = 2.450000e-011
+.param dvth0_p_10_sp = -3.000000e-002
+.param du0_p_10_sp = 0.000000e+000
+.param dcgso_p_10_sp = -4.200000e-012
+.param dvoffl_p_10_sp = -1.170000e-009
+.param dcgdl_p_10_sp = -2.000000e-011
+.param dpvth0_p_10_sp = 0.000000e+000
+.param dxw_p_10_sp = -3.000000e-009
+.param dk3_p_10_sp = 3.051000e+001
+.param dlpe0_p_10_sp = 0.000000e+000
+
+.include 'L90_SP10_V051.mdl'
+.ENDL SS 
+
+.LIB FF 
+*DEVICE 1
+.param dtoxp_n_10_sp = -1.000000e-010
+.param dwint_n_10_sp = 0.000000e+000
+.param dllpe0_n_10_sp = -1.550000e-009
+.param dxl_n_10_sp = -1.000000e-010
+.param drdsw_n_10_sp = -1.000000e+001
+.param dcgdo_n_10_sp = 5.000000e-012
+.param dcgsl_n_10_sp = 2.200000e-011
+.param dcf_n_10_sp = 9.260000e-012
+.param dcjs_n_10_sp = -1.070000e-004
+.param dcjsws_n_10_sp = -1.260000e-011
+.param dcjswgs_n_10_sp = -2.310000e-011
+.param dtoxe_n_10_sp = -1.000000e-010
+.param dvth0_n_10_sp = -3.300000e-002
+.param dcgso_n_10_sp = 5.000000e-012
+.param dvoffl_n_10_sp = -1.053000e-009
+.param dcgdl_n_10_sp = 2.200000e-011
+.param dpvth0_n_10_sp = -1.400000e-004
+.param dlpe0_n_10_sp = 0.000000e+000
+.param dxw_n_10_sp = 1.800000e-009
+.param dk3_n_10_sp = -2.510000e+000
+.param dwwl_n_10_sp = -1.200000e-023
+
+*DEVICE 2
+.param dwwl_p_10_sp = -4.200000e-023
+.param dtoxp_p_10_sp = -1.000000e-010
+.param dwint_p_10_sp = 0.000000e+000
+.param dllpe0_p_10_sp = 0.000000e+000
+.param dxl_p_10_sp = -3.337000e-009
+.param drdsw_p_10_sp = 0.000000e+000
+.param dcgdo_p_10_sp = 4.200000e-012
+.param dcgsl_p_10_sp = 2.000000e-011
+.param dcf_p_10_sp = 9.080000e-012
+.param dcjsws_p_10_sp = -1.290000e-011
+.param dtoxe_p_10_sp = -1.000000e-010
+.param dcjs_p_10_sp = -1.260000e-004
+.param dcjswgs_p_10_sp = -2.450000e-011
+.param dvth0_p_10_sp = 2.360000e-002
+.param du0_p_10_sp = 0.000000e+000
+.param dcgso_p_10_sp = 4.200000e-012
+.param dvoffl_p_10_sp = -2.565000e-009
+.param dcgdl_p_10_sp = 2.000000e-011
+.param dpvth0_p_10_sp = 1.215000e-004
+.param dxw_p_10_sp = 3.000000e-009
+.param dk3_p_10_sp = -3.100000e+001
+.param dlpe0_p_10_sp = 1.600000e-009
+
+.include 'L90_SP10_V051.mdl'
+.ENDL FF 
+
+.LIB SNFP 
+*DEVICE 1
+.param dtoxp_n_10_sp = 0.000000e+000
+.param dwint_n_10_sp = 0.000000e+000
+.param dllpe0_n_10_sp = 1.700000e-009
+.param dxl_n_10_sp = 3.040000e-010
+.param drdsw_n_10_sp = 1.300000e+001
+.param dcgdo_n_10_sp = 0.000000e+000
+.param dcgsl_n_10_sp = 0.000000e+000
+.param dcf_n_10_sp = 0.000000e+000
+.param dcjs_n_10_sp = 1.070000e-004
+.param dcjsws_n_10_sp = 1.260000e-011
+.param dcjswgs_n_10_sp = 2.310000e-011
+.param dtoxe_n_10_sp = 0.000000e+000
+.param dvth0_n_10_sp = 2.200000e-002
+.param dcgso_n_10_sp = 0.000000e+000
+.param dvoffl_n_10_sp = 2.250000e-010
+.param dcgdl_n_10_sp = 0.000000e+000
+.param dpvth0_n_10_sp = 1.160000e-004
+.param dlpe0_n_10_sp = 0.000000e+000
+.param dxw_n_10_sp = -3.200000e-009
+.param dk3_n_10_sp = 1.100000e+000
+.param dwwl_n_10_sp = 1.800000e-023
+
+*DEVICE 2
+.param dwwl_p_10_sp = -2.200000e-023
+.param dtoxp_p_10_sp = 0.000000e+000
+.param dwint_p_10_sp = 0.000000e+000
+.param dllpe0_p_10_sp = 0.000000e+000
+.param dxl_p_10_sp = -2.259000e-009
+.param drdsw_p_10_sp = 0.000000e+000
+.param dcgdo_p_10_sp = 0.000000e+000
+.param dcgsl_p_10_sp = 0.000000e+000
+.param dcf_p_10_sp = 0.000000e+000
+.param dcjsws_p_10_sp = -1.290000e-011
+.param dtoxe_p_10_sp = 0.000000e+000
+.param dcjs_p_10_sp = -1.260000e-004
+.param dcjswgs_p_10_sp = -2.450000e-011
+.param dvth0_p_10_sp = 1.600000e-002
+.param du0_p_10_sp = 1.100000e-004
+.param dcgso_p_10_sp = 0.000000e+000
+.param dvoffl_p_10_sp = -1.365000e-009
+.param dcgdl_p_10_sp = 0.000000e+000
+.param dpvth0_p_10_sp = 6.150000e-005
+.param dxw_p_10_sp = 1.500000e-009
+.param dk3_p_10_sp = -1.600000e+001
+.param dlpe0_p_10_sp = -3.078000e-009
+
+.include 'L90_SP10_V051.mdl'
+.ENDL SNFP 
+
+.LIB FNSP 
+*DEVICE 1
+.param dtoxp_n_10_sp = 0.000000e+000
+.param dwint_n_10_sp = 0.000000e+000
+.param dllpe0_n_10_sp = -1.000000e-009
+.param dxl_n_10_sp = -1.000000e-010
+.param drdsw_n_10_sp = -1.300000e+001
+.param dcgdo_n_10_sp = 0.000000e+000
+.param dcgsl_n_10_sp = 0.000000e+000
+.param dcf_n_10_sp = 0.000000e+000
+.param dcjs_n_10_sp = -1.070000e-004
+.param dcjsws_n_10_sp = -1.260000e-011
+.param dcjswgs_n_10_sp = -2.310000e-011
+.param dtoxe_n_10_sp = 0.000000e+000
+.param dvth0_n_10_sp = -2.100000e-002
+.param dcgso_n_10_sp = 0.000000e+000
+.param dvoffl_n_10_sp = -5.000000e-010
+.param dcgdl_n_10_sp = 0.000000e+000
+.param dpvth0_n_10_sp = -1.300000e-004
+.param dlpe0_n_10_sp = -1.640000e-008
+.param dxw_n_10_sp = 1.000000e-009
+.param dk3_n_10_sp = -7.502000e-001
+.param dwwl_n_10_sp = -1.200000e-023
+
+*DEVICE 2
+.param dwwl_p_10_sp = 3.585000e-023
+.param dtoxp_p_10_sp = 0.000000e+000
+.param dwint_p_10_sp = 1.250000e-009
+.param dllpe0_p_10_sp = 1.800000e-009
+.param dxl_p_10_sp = 5.000000e-010
+.param drdsw_p_10_sp = 1.000000e+001
+.param dcgdo_p_10_sp = 0.000000e+000
+.param dcgsl_p_10_sp = 0.000000e+000
+.param dcf_p_10_sp = 0.000000e+000
+.param dcjsws_p_10_sp = 1.290000e-011
+.param dtoxe_p_10_sp = 0.000000e+000
+.param dcjs_p_10_sp = 1.260000e-004
+.param dcjswgs_p_10_sp = 2.450000e-011
+.param dvth0_p_10_sp = -2.000000e-002
+.param du0_p_10_sp = 0.000000e+000
+.param dcgso_p_10_sp = 0.000000e+000
+.param dvoffl_p_10_sp = -6.000000e-010
+.param dcgdl_p_10_sp = 0.000000e+000
+.param dpvth0_p_10_sp = 0.000000e+000
+.param dxw_p_10_sp = -1.500000e-009
+.param dk3_p_10_sp = 1.440000e+001
+.param dlpe0_p_10_sp = 0.000000e+000
+
+.include 'L90_SP10_V051.mdl'
+.ENDL FNSP 
+

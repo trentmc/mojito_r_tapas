@@ -1,0 +1,21 @@
+# host definition file
+# format:
+# hostname mac nb_slaves [wake_on_lan] [use_host]
+#
+kallichore    00:1E:4F:DB:13:E8 12 0 1
+titania       00:1E:4F:E0:AA:18 12 0 1
+hegemone      00:1E:4F:E0:A1:9E 12 0 1
+desdemona     00:1E:4F:DB:14:A7 12 0 1
+thalassa      00:1E:4F:DB:15:5F 12 0 1
+prometheus    00:18:8B:8B:9D:99 3  0 1
+phoebe        00:18:8B:8B:24:56 3  0 1
+lysithea      00:1E:4F:EE:DB:D8 12 0 1
+callisto      00:00:00:00:00:00 3  0 1
+janus         00:00:00:00:00:00 3  0 1
+mimas         00:00:00:00:00:00 3  0 1
+pasiphae      00:00:00:00:00:00 3  0 0
+pandora       00:00:00:00:00:00 3  0 1
+sinope        00:00:00:00:00:00 3  0 0
+phobos        00:00:00:00:00:00 3  0 0
+elara         00:00:00:00:00:00 3  0 1
+enceladus     00:00:00:00:00:00 3  0 1

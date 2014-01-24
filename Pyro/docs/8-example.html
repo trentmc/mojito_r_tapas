@@ -1,0 +1,329 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<!-- $Id: 8-example.html,v 2.21.2.1 2007/04/30 14:25:56 irmen Exp $ -->
+<head>
+  <title>PYRO - Example</title>
+  <link rel="stylesheet" type="text/css" href="pyromanual_print.css" media="print">
+  <link rel="stylesheet" type="text/css" href="pyromanual.css" media="screen">
+</head>
+
+<body>
+  <div class="nav">
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="7-features.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "9-security.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table>
+<hr></div>
+
+  <h2><u>8. Example</u></h2>
+  In this chapter you'll find a short but complete example that shows how Pyro must be used
+  and how it works. However, much more interesting examples can be found in the <code>examples</code> directory.
+  For the real impatient people, I recommend the &quot;quickstart&quot; example, because you'll see that you
+  can eliminate very much of the (already little!) extra work you have to do to make a Pyro application.
+
+  <p>For the really impatient, first two minimalist Pyro examples.</p>
+
+  <h3>Minimalist's Pyro - not using a Name Server</h3>
+
+  <dl>
+    <dt>Server:</dt>
+
+    <dd>
+      <pre>
+import Pyro.core
+
+class JokeGen(Pyro.core.ObjBase):
+        def __init__(self):
+                Pyro.core.ObjBase.__init__(self)
+        def joke(self, name):
+                return &quot;Sorry &quot;+name+&quot;, I don't know any jokes.&quot;
+
+Pyro.core.initServer()
+daemon=Pyro.core.Daemon()
+uri=daemon.connect(JokeGen(),&quot;jokegen&quot;)
+
+print &quot;The daemon runs on port:&quot;,daemon.port
+print &quot;The object's uri is:&quot;,uri
+
+daemon.requestLoop()
+</pre>
+    </dd>
+
+    <dt>Client:</dt>
+
+    <dd>
+      <pre>
+import Pyro.core
+
+# you have to change the URI below to match your own host/port.
+jokes = Pyro.core.getProxyForURI(&quot;PYROLOC://localhost:7766/jokegen&quot;)
+
+print jokes.joke(&quot;Irmen&quot;)
+</pre>
+    </dd>
+  </dl>
+
+  <h3>Minimalist's Pyro - using a Name Server</h3>
+
+  <dl>
+    <dt>Server:</dt>
+
+    <dd>
+      <pre>
+import Pyro.core
+import Pyro.naming
+
+class JokeGen(Pyro.core.ObjBase):
+        def __init__(self):
+                Pyro.core.ObjBase.__init__(self)
+        def joke(self, name):
+                return &quot;Sorry &quot;+name+&quot;, I don't know any jokes.&quot;
+
+Pyro.core.initServer()
+ns=Pyro.naming.NameServerLocator().getNS()
+daemon=Pyro.core.Daemon()
+daemon.useNameServer(ns)
+uri=daemon.connect(JokeGen(),&quot;jokegen&quot;)
+daemon.requestLoop()
+</pre>
+    </dd>
+
+    <dt>Client:</dt>
+
+    <dd>
+      <pre>
+import Pyro.core
+
+# finds object automatically if you're running the Name Server.
+jokes = Pyro.core.getProxyForURI(&quot;PYRONAME://jokegen&quot;)
+
+print jokes.joke(&quot;Irmen&quot;)
+</pre>
+    </dd>
+  </dl>
+
+  <h3>There we go with the complete example:</h3>
+
+  <ol>
+    <li>Write a module 'testmod.py' containing a class 'testclass', which will be accessed remotely.
+      <pre>
+class testclass:
+    def mul(s, arg1, arg2): return arg1*arg2
+    def add(s, arg1, arg2): return arg1+arg2
+    def sub(s, arg1, arg2): return arg1-arg2
+    def div(s, arg1, arg2): return arg1/arg2
+</pre>
+    </li>
+
+    <li>Write a server, testserver.py, that creates one or more instances of the 'testclass', and registers them with
+    the Pyro Name Server.
+      <pre>
+import Pyro.naming
+import Pyro.core
+from Pyro.errors import PyroError,NamingError
+
+import testmod
+
+###### testclass Pyro object
+
+class testclass(Pyro.core.ObjBase, testmod.testclass):
+        pass
+
+###### main server program
+
+def main():
+        Pyro.core.initServer()
+        daemon = Pyro.core.Daemon()
+        # locate the NS
+        locator = Pyro.naming.NameServerLocator()
+        print 'searching for Name Server...'
+        ns = locator.getNS()
+        daemon.useNameServer(ns)
+
+        # connect a new object implementation (first unregister previous one)
+        try:
+                # 'test' is the name by which our object will be known to the outside world
+                ns.unregister('test')
+        except NamingError:
+                pass
+
+        # connect new object implementation
+        daemon.connect(testclass(),'test')
+
+        # enter the server loop.
+        print 'Server object &quot;test&quot; ready.'
+        daemon.requestLoop()
+
+if __name__==&quot;__main__&quot;:
+        main()
+</pre>
+    </li>
+
+    <li>To make it interesting, the shortest client possible looks someting like:
+      <pre>
+import Pyro.core
+o=Pyro.core.getProxyForURI('PYRONAME://:Default.test')
+print o.mul(5,33)
+</pre>... But for educational purposes, we use the long way around. Read on.
+    </li>
+
+    <li>Write a client, testclient.py, that will find the Name Server.
+      <pre>
+import Pyro.naming, Pyro.core
+from Pyro.errors import NamingError
+
+# locate the NS
+locator = Pyro.naming.NameServerLocator()
+print 'Searching Name Server...',
+ns = locator.getNS()
+</pre>(... continued ...)
+    </li>
+
+    <li>Let the client query the NS for the object's URI. Then create a proxy for the remote object. Because the proxy
+    appears the same as the real 'testclass', the client can now invoke methods on the remote objects.
+
+      <p>(...continued from above...)</p>
+      <pre>
+# resolve the Pyro object
+print 'finding object'
+try:
+        URI=ns.resolve('test')
+        print 'URI:',URI
+except NamingError,x:
+        print 'Couldn\'t find object, nameserver says:',x
+        raise SystemExit
+
+# create a proxy for the Pyro object, and return that
+test = Pyro.core.getProxyForURI(URI)
+
+print test.mul(111,9)
+print test.add(100,222)
+print test.sub(222,100)
+print test.div(2.0,9.0)
+print test.mul('*',10)
+print test.add('String1','String2')
+</pre>
+    </li>
+
+    <li>Run the application in the network. First, start the Name Server on one computer.
+      <pre>
+irmen@atlantis:~ &gt; pyro-ns
+*** Pyro Name Server ***
+Pyro Server Initialized. Using Pyro V3.7
+URI is: PYRO://10.0.0.150:9090/0a00009604005c6282a8a516d79917fd
+URI written to: e:\Pyro_NS_URI
+Name Server started.
+</pre>
+    </li>
+
+    <li>Start the server on another computer (or in a different shell).
+      <pre>
+irmen@atlantis:~/ex &gt; python testserver.py 
+Pyro Server Initialized. Using Pyro V3.5
+searching for Name Server...
+Server object &quot;test&quot; ready.
+</pre>
+    </li>
+
+    <li>Finally, run the client on a third computer (or in a different shell).
+      <pre>
+irmen@atlantis:~/ex &gt; python testclient.py
+Pyro Client Initialized. Using Pyro V3.5
+Searching Name Server... finding object
+URI: PYRO://10.0.0.150:7766/0a0000960c545c62a91e3021bceb7f26
+999
+322
+122
+0.222222222222
+**********
+String1String2
+</pre>
+    </li>
+
+    <li>You might want to peek in the Name Server:
+      <pre>
+irmen@atlantis:~/ex &gt; pyro-nsc listall
+Locator: searching Pyro Name Server...
+NS is at 10.0.0.150 (isengard.lan) port 9090
+-------------- START DATABASE
+:Default.test  --&gt;  PYRO://10.0.0.150:7766/0a0000960c545c62a91e3021bceb7f26
+:Pyro.NameServer  --&gt;  PYRO://10.0.0.150:9090/0a00009604005c6282a8a516d79917fd
+-------------- END
+</pre>
+    </li>
+
+    <li>And if you're interested you may want to try the logging facility of Pyro. First, set the tracelevel to
+    something other than the default, 0. See the chapter on configuration how to do that. Usually you'll set the
+    environment variable <code>PYRO_TRACELEVEL</code> to 3 (=maximum logging). Then, when you start Pyro programs (like
+    the nameserver), they will write something like this to the logfile:
+      <pre>
+------------------------------------------------------------ NEW SESSION
+2005-03-13 13:23:40   Pyro Initializing, version 3.7
+This is initServer.
+Configuration settings are as follows:
+PYROSSL_CA_CERT = ca.pem
+PYROSSL_CERTDIR = E:\temp\certs
+PYROSSL_CLIENT_CERT = client.pem
+PYROSSL_SERVER_CERT = server.pem
+PYRO_BC_RETRIES = 2
+PYRO_BC_TIMEOUT = 2
+PYRO_CHECKSUM = 0
+PYRO_COMPRESSION = 0
+PYRO_CONFIG_FILE = 
+PYRO_DETAILED_TRACEBACK = 0
+PYRO_DNS_URI = 0
+PYRO_ES_BLOCKQUEUE = 1
+PYRO_ES_QUEUESIZE = 1000
+PYRO_LOGFILE = E:\temp\Pyro_log
+PYRO_MAXCONNECTIONS = 200
+PYRO_MOBILE_CODE = 0
+PYRO_MULTITHREADED = 1
+PYRO_NS2_BC_PORT = 9091
+PYRO_NS2_HOSTNAME = None
+PYRO_NS2_PORT = 9091
+PYRO_NS_BC_PORT = 9090
+PYRO_NS_DEFAULTGROUP = :Default
+PYRO_NS_HOSTNAME = None
+PYRO_NS_PORT = 9090
+PYRO_NS_URIFILE = E:\temp\Pyro_NS_URI
+PYRO_PICKLE_FORMAT = 2
+PYRO_PORT = 7766
+PYRO_PORT_RANGE = 100
+PYRO_PRINT_REMOTE_TRACEBACK = 0
+PYRO_SOCK_KEEPALIVE = 1
+PYRO_STDLOGGING = 0
+PYRO_STDLOGGING_CFGFILE = logging.cfg
+PYRO_STORAGE = E:\temp
+PYRO_TCP_LISTEN_BACKLOG = 200
+PYRO_TRACELEVEL = 3
+PYRO_USER_LOGFILE = E:\temp\Pyro_userlog
+PYRO_USER_TRACELEVEL = 0
+PYRO_XML_PICKLE = None
+Init done.
+----------------------------------------------------------------------
+2005-03-13 13:23:44 [1084:MainThread] ** NOTE ** NameServer ** created group :Pyro
+2005-03-13 13:23:44 [1084:MainThread] ** NOTE ** NameServer ** created group :Default
+2005-03-13 13:23:44 [1084:MainThread] ** NOTE ** NameServer ** Running in single mode
+2005-03-13 13:23:44 [1084:MainThread] ** NOTE ** NameServer ** registered NameServer with URI PYRO://10.0.0.150:9090/0a000096043c5c63117eead5b89ea267
+2005-03-13 13:23:44 [1084:MainThread] ** NOTE ** NameServer ** URI written to E:\temp\Pyro_NS_URI
+2005-03-13 13:23:44 [1084:MainThread] ** NOTE ** NS daemon ** This is the Pyro Name Server.
+2005-03-13 13:23:44 [1084:MainThread] ** NOTE ** NS daemon ** Starting on isengard port 9090  broadcast server on port 9090
+</pre>
+    </li>
+  </ol>
+  <div class="nav">
+  <hr>
+  <table width="100%">
+    <tr>
+      <td align="left"><a href="7-features.html">&lt;previous</a> | <a href="PyroManual.html">contents</a> | <a href=
+      "9-security.html">next&gt;</a></td>
+
+      <td align="right">Pyro Manual</td>
+    </tr>
+  </table></div>
+</body>
+</html>
